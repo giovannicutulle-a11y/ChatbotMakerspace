@@ -1,0 +1,1698 @@
+<!doctype html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Track your protein</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Protein">
+<meta name="theme-color" content="#1F5FAE">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.js"></script>
+<style>
+:root{
+  --bg:#F2F4F8; --surface:#FFFFFF; --ink:#152033; --muted:#5B6678; --line:#D7DDE7;
+  --protein:#1F5FAE; --protein-soft:#DCE6F5; --carb:#E08A3C; --fat:#7B61B8; --kcal:#152033;
+  --danger:#B23A3A; --overlay:rgba(15,22,35,.45);
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body:"Instrument Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F141C; --surface:#172030; --ink:#E6ECF5; --muted:#98A3B5; --line:#283347;
+    --protein:#7AAAF0; --protein-soft:#1C2A42; --carb:#F2A65E; --fat:#A68BDB; --kcal:#E6ECF5;
+    --danger:#E8837A; --overlay:rgba(0,0,0,.6); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0F141C; --surface:#172030; --ink:#E6ECF5; --muted:#98A3B5; --line:#283347;
+  --protein:#7AAAF0; --protein-soft:#1C2A42; --carb:#F2A65E; --fat:#A68BDB; --kcal:#E6ECF5;
+  --danger:#E8837A; --overlay:rgba(0,0,0,.6); color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--body);-webkit-font-smoothing:antialiased;padding-bottom:84px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--protein);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding:0 18px}
+.num{font-variant-numeric:tabular-nums}
+
+/* Kopf */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;padding-bottom:12px}
+.brand{font-family:var(--display);font-weight:800;font-size:1.05rem;letter-spacing:-.01em}
+.who{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px}
+.who button{border:0;background:none;padding:6px 14px;border-radius:999px;font-weight:600;font-size:.9rem;color:var(--muted);max-width:9.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who button[aria-selected="true"]{background:var(--ink);color:var(--bg)}
+
+.banner{margin:12px 0 0;padding:10px 12px;border-left:3px solid var(--carb);background:var(--surface);font-size:.9rem;color:var(--muted)}
+
+/* Datum */
+.datebar{display:flex;align-items:center;justify-content:space-between;margin:18px 0 6px}
+.datebar button{border:0;background:none;padding:8px 10px;font-size:1.3rem;line-height:1;color:var(--muted);border-radius:8px}
+.datebar .datelabel{font-size:1rem;font-weight:600;color:var(--ink)}
+
+/* Tagesbilanz */
+.hero{padding:10px 0 22px;border-bottom:1px solid var(--line)}
+.hero-p{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.hero-p .big{font-family:var(--display);font-weight:800;font-size:clamp(4.2rem,20vw,7.5rem);line-height:.9;letter-spacing:-.04em;color:var(--protein)}
+.hero-p .unit{font-family:var(--display);font-weight:600;font-size:1.25rem}
+.hero-p .of{color:var(--muted);font-size:1rem;width:100%}
+.pbar{height:16px;background:var(--protein-soft);border-radius:4px;margin:14px 0 6px;overflow:hidden;position:relative}
+.pbar i{display:block;height:100%;background:var(--protein);border-radius:4px;transition:width .35s ease}
+.pnote{font-size:.9rem;color:var(--muted);margin:0 0 16px}
+.macros{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.macro .lbl{font-size:.82rem;color:var(--muted)}
+.macro .val{font-weight:600;font-size:1rem}
+.macro .val small{font-weight:400;color:var(--muted);font-size:.82rem}
+.thin{height:5px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden}
+.thin i{display:block;height:100%;border-radius:3px}
+.over{color:var(--danger)}
+
+/* Mahlzeiten */
+.meal{padding:18px 0;border-bottom:1px solid var(--line)}
+.meal-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.meal-h h3{margin:0;font-family:var(--display);font-weight:600;font-size:1.15rem}
+.meal-sum{font-size:.85rem;color:var(--muted)}
+.items{list-style:none;margin:10px 0 0;padding:0}
+.items li button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;background:none;padding:9px 0;text-align:left;border-top:1px dashed var(--line)}
+.items li:first-child button{border-top:0}
+.items .n{font-weight:500}
+.items .g{display:block;font-size:.82rem;color:var(--muted)}
+.items .r{text-align:right;white-space:nowrap}
+.items .r b{color:var(--protein);font-weight:600}
+.items .r span{display:block;font-size:.82rem;color:var(--muted)}
+.meal-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+
+.btn{border:1px solid var(--ink);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:999px;font-weight:600;font-size:.92rem}
+.btn.line{background:none;color:var(--ink);border-color:var(--line)}
+.btn.danger{background:none;border-color:var(--danger);color:var(--danger)}
+.btn.wide{width:100%;padding:13px 16px;font-size:1rem}
+.btn:disabled{opacity:.5;cursor:default}
+.link{border:0;background:none;padding:6px 0;color:var(--protein);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+
+/* Tabs */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs .wrap{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+.tabs button{border:0;background:none;padding:14px 4px;font-weight:600;font-size:.92rem;color:var(--muted);border-top:3px solid transparent}
+.tabs button[aria-selected="true"]{color:var(--ink);border-top-color:var(--protein)}
+
+/* Sheet */
+.sheet{position:fixed;inset:0;z-index:20;display:none}
+.sheet.open{display:block}
+.sheet .bd{position:absolute;inset:0;background:var(--overlay)}
+.sheet .panel{position:absolute;left:0;right:0;bottom:0;max-height:92%;overflow:auto;background:var(--surface);border-radius:18px 18px 0 0;padding:18px 18px calc(22px + env(safe-area-inset-bottom,0px));max-width:640px;margin:0 auto;animation:up .22s ease}
+@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.sheet .panel{animation:none}.pbar i{transition:none}}
+.sheet-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.sheet-h h2{margin:0;font-family:var(--display);font-weight:600;font-size:1.25rem}
+.field{display:block;margin:0 0 12px}
+.field span{display:block;font-size:.82rem;color:var(--muted);margin-bottom:4px}
+input[type=search],input[type=text],input[type=number],input[type=date],select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.results{list-style:none;margin:8px 0;padding:0}
+.results li button{width:100%;display:flex;justify-content:space-between;gap:12px;align-items:center;border:0;border-bottom:1px solid var(--line);background:none;padding:11px 2px;text-align:left}
+.results .meta{font-size:.82rem;color:var(--muted)}
+.results .pp{white-space:nowrap;color:var(--protein);font-weight:600;font-size:.9rem}
+.tag{display:inline-block;font-size:.72rem;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:1px}
+.hint{font-size:.88rem;color:var(--muted);margin:8px 0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 14px}
+.chips button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-size:.88rem}
+.preview{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 0;margin:4px 0 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.preview div{font-size:.8rem;color:var(--muted)}
+.preview b{display:block;font-size:1.15rem;color:var(--ink);font-family:var(--display);font-weight:600}
+.preview .pv b{color:var(--protein)}
+.row-actions{display:flex;gap:10px}
+.row-actions .btn{flex:1}
+
+/* Verlauf */
+h2.sec{font-family:var(--display);font-weight:600;font-size:1.35rem;margin:26px 0 10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:10px 0 14px}
+.stats div{font-size:.8rem;color:var(--muted)}
+.stats b{display:block;font-family:var(--display);font-weight:600;font-size:1.4rem;color:var(--ink)}
+.chart{width:100%;overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto}
+.week{list-style:none;margin:0;padding:0}
+.week li{display:grid;grid-template-columns:4.2em 1fr auto;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:.92rem}
+.week .d{color:var(--muted)}
+.week .bar{height:10px;background:var(--protein-soft);border-radius:3px;overflow:hidden}
+.week .bar i{display:block;height:100%;background:var(--protein)}
+.week .v{text-align:right;white-space:nowrap}
+.week .v span{display:block;font-size:.8rem;color:var(--muted)}
+.inline{display:flex;gap:10px;align-items:flex-end}
+.inline .field{flex:1;margin:0}
+
+/* Profil */
+table.targets{width:100%;border-collapse:collapse;margin:8px 0 18px;font-size:.95rem}
+table.targets th,table.targets td{padding:9px 4px;border-bottom:1px solid var(--line);text-align:left}
+table.targets td:last-child,table.targets th:last-child{text-align:right}
+table.targets th{font-size:.8rem;color:var(--muted);font-weight:500}
+.small{font-size:.85rem;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.9rem;z-index:30;max-width:90%;display:none}
+.toast.show{display:block}
+/* Dashboard */
+body.dash .wrap{max-width:1080px}
+:root{--figure:#3F72B8;--figure-ghost:#C8D4E6;--figure-line:rgba(255,255,255,.6);--panel:#E1E8F3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--figure:#6E9BDB;--figure-ghost:#2B3852;--figure-line:rgba(8,12,20,.45);--panel:#1A2438}}
+:root[data-theme="dark"]{--figure:#6E9BDB;--figure-ghost:#2B3852;--figure-line:rgba(8,12,20,.45);--panel:#1A2438}
+.dgrid{display:grid;grid-template-columns:1fr;gap:18px;margin-top:18px}
+@media (min-width:860px){.dgrid.top{grid-template-columns:1.15fr 1fr}.dgrid.two{grid-template-columns:1fr 1fr}}
+.pane{border-top:2px solid var(--ink);padding-top:12px}
+.pane h2{font-family:var(--display);font-weight:600;font-size:1.15rem;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.pane h2 small{font-family:var(--body);font-weight:400;font-size:.8rem;color:var(--muted)}
+.avp{background:var(--panel);border-radius:18px;padding:18px}
+.avp h2{font-family:var(--display);font-weight:600;font-size:1.15rem;margin:0}
+.avwrap{display:grid;grid-template-columns:minmax(150px,210px) 1fr;gap:18px;align-items:center;margin-top:8px}
+@media (max-width:420px){.avwrap{grid-template-columns:1fr}.avwrap .fig{max-width:200px;margin:0 auto}}
+.fig svg{display:block;width:100%;height:auto}
+.bstats{margin:0;display:grid;gap:12px}
+.bstats div{display:grid;gap:2px}
+.bstats dt{font-size:.8rem;color:var(--muted)}
+.bstats dd{margin:0;font-family:var(--display);font-weight:600;font-size:1.5rem;line-height:1.1}
+.bstats dd small{font-family:var(--body);font-weight:500;font-size:.82rem;color:var(--muted);margin-left:4px}
+.bstats dd .delta{font-size:.85rem;font-family:var(--body);font-weight:600;margin-left:6px}
+.scale{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--line),var(--line));position:relative;margin-top:4px}
+.scale i{position:absolute;top:-4px;width:3px;height:14px;background:var(--ink);border-radius:2px}
+.proj{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.proj span{font-size:.82rem;color:var(--muted);width:100%}
+.proj button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.86rem;font-weight:600}
+.proj button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.proj button:disabled{opacity:.45;cursor:default}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:18px}
+@media (min-width:860px){.kpis{grid-template-columns:repeat(6,1fr)}}
+.kpi{background:var(--surface);padding:12px 14px}
+.kpi .l{font-size:.78rem;color:var(--muted);line-height:1.25}
+.kpi .v{font-family:var(--display);font-weight:600;font-size:1.45rem;margin-top:4px}
+.kpi .s{font-size:.8rem;color:var(--muted)}
+.good{color:var(--protein)}
+.warn{color:var(--carb)}
+.split{display:flex;height:22px;border-radius:5px;overflow:hidden;margin:4px 0 2px}
+.split i{display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;color:#fff;font-style:normal;white-space:nowrap;overflow:hidden}
+.split-l{display:flex;justify-content:space-between;font-size:.8rem;color:var(--muted);margin-top:8px}
+.tops{list-style:none;margin:10px 0 0;padding:0;counter-reset:t}
+.tops li{display:grid;grid-template-columns:1fr auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:.92rem}
+.tops b{color:var(--protein);font-weight:600}
+.insights{list-style:none;margin:0;padding:0}
+.insights li{padding:10px 0 10px 14px;border-left:3px solid var(--line);margin-bottom:8px;font-size:.94rem}
+.insights li.pos{border-left-color:var(--protein)}
+.insights li.att{border-left-color:var(--carb)}
+.todaybox .big{font-family:var(--display);font-weight:800;font-size:clamp(3rem,11vw,4.6rem);line-height:.95;color:var(--protein);letter-spacing:-.03em}
+.todaybox .row{display:flex;justify-content:space-between;gap:10px;font-size:.92rem;padding:7px 0;border-bottom:1px solid var(--line)}
+.todaybox .row span:first-child{color:var(--muted)}
+
+.kpis{grid-template-columns:repeat(2,1fr)}
+@media (min-width:860px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.tip{margin:12px 0 0;padding:10px 14px;border-left:3px solid var(--carb);background:var(--surface);font-size:.93rem}
+.bigsub{font-size:1rem;font-weight:600;color:var(--ink);letter-spacing:0}
+.recs{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.recs h3{margin:0 0 4px;font-family:var(--display);font-weight:600;font-size:1.05rem}
+.rec-head{margin:0 0 8px;font-size:.93rem}
+.reclist{list-style:none;margin:0;padding:0}
+.reclist li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.reclist li div{display:grid;gap:1px;min-width:0}
+.reclist b{font-weight:600}
+.reclist span{font-size:.85rem;color:var(--protein);font-weight:600}
+.reclist small{font-size:.8rem;color:var(--muted)}
+.reclist .btn{padding:7px 12px;font-size:.84rem;white-space:nowrap;flex-shrink:0}
+.wk-done{margin:0 0 6px}
+.wk-due{margin:0 0 10px;padding:10px 12px;border-left:3px solid var(--protein);background:var(--protein-soft);font-size:.93rem}
+
+.qrow{display:flex;gap:8px}
+.qrow input{flex:1;min-width:0}
+.scview{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden;margin:4px 0 8px}
+.scview video{width:100%;height:100%;object-fit:cover;display:block}
+.scview::after{content:"";position:absolute;left:12%;right:12%;top:35%;bottom:35%;border:2px solid rgba(255,255,255,.85);border-radius:8px;pointer-events:none}
+.scview #qr-shaded-region{border-color:rgba(0,0,0,.45)!important}
+.source{font-size:.78rem;color:var(--muted);margin-top:22px}
+.mechip{font-weight:600;font-size:.9rem;padding:6px 14px;border-radius:999px;background:var(--surface);border:1px solid var(--line);max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.auth{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;padding:calc(28px + env(safe-area-inset-top,0px)) 18px calc(28px + env(safe-area-inset-bottom,0px))}
+.auth .box{max-width:420px;margin:0 auto}
+.auth h1{font-family:var(--display);font-weight:800;font-size:2.2rem;letter-spacing:-.03em;line-height:1;margin:18px 0 6px;color:var(--protein)}
+.auth .lead{color:var(--muted);margin:0 0 22px}
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;margin-bottom:18px}
+.seg button{flex:1;border:0;background:none;padding:8px;border-radius:999px;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:.86rem;color:var(--muted);margin:4px 0 16px}
+.check input{margin-top:3px;width:18px;height:18px;flex-shrink:0}
+.msg{padding:10px 12px;border-radius:10px;font-size:.9rem;margin:0 0 14px;background:var(--protein-soft)}
+.msg.err{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}
+.tablewrap{overflow-x:auto;margin-top:10px}
+table.users{width:100%;border-collapse:collapse;font-size:.9rem;min-width:560px}
+table.users th,table.users td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.users th{font-size:.78rem;color:var(--muted);font-weight:500}
+table.users td.r,table.users th.r{text-align:right}
+[hidden]{display:none!important}
+.loading{padding:60px 0;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">Track your protein</div>
+    <div class="who" role="tablist" aria-label="Mein Profil" id="who"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner" class="banner" hidden></div>
+  <div id="loading" class="loading">Daten werden geladen</div>
+
+  <section id="v-dash" hidden></section>
+
+  <section id="v-heute" hidden>
+    <nav class="datebar" aria-label="Datum">
+      <button id="prevDay" aria-label="Vorheriger Tag">&#8249;</button>
+      <button id="dateLabel" class="datelabel" title="Zu heute springen"></button>
+      <button id="nextDay" aria-label="Nächster Tag">&#8250;</button>
+    </nav>
+    <div id="hero" class="hero"></div>
+    <div id="recsDay"></div>
+    <div id="meals"></div>
+  </section>
+
+  <section id="v-verlauf" hidden>
+    <h2 class="sec">Gewicht</h2>
+    <p class="small" id="wWeekNote"></p>
+    <div class="inline">
+      <label class="field"><span>Gewicht dieser Woche in kg</span><input type="number" id="wKg" step="0.1" min="30" max="250" inputmode="decimal"></label>
+      <button class="btn" id="wSave">Speichern</button>
+    </div>
+    <div id="wStats" class="stats"></div>
+    <div id="wChart" class="chart"></div>
+    <h2 class="sec">Letzte 7 Tage</h2>
+    <p class="small" id="weekNote"></p>
+    <ul class="week" id="week"></ul>
+  </section>
+
+  <section id="v-admin" hidden></section>
+
+  <section id="v-profil" hidden>
+    <h2 class="sec">Profil und Ziele</h2>
+    <div id="profileForm"></div>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist" aria-label="Ansicht">
+  <div class="wrap">
+    <button data-tab="dash" aria-selected="true">Dashboard</button>
+    <button data-tab="heute" aria-selected="false">Tag</button>
+    <button data-tab="verlauf" aria-selected="false">Verlauf</button>
+    <button data-tab="profil" aria-selected="false">Profil</button>
+    <button data-tab="admin" aria-selected="false" id="adminTab" hidden>Admin</button>
+  </div>
+</nav>
+
+<div class="sheet" id="sheet" aria-hidden="true">
+  <div class="bd" data-close></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="sheetPanel"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="auth" id="auth" hidden><div class="box" id="authBox"></div></div>
+
+<script>
+/* ---------- Lebensmittel-Datenbank (Werte pro 100 g / 100 ml, Richtwerte) ---------- */
+/* [Name, kcal, Protein, Kohlenhydrate, Fett, Portionsname, Portion g, Suchbegriffe] */
+const BASE_RAW = [
+ ["Magerquark",67,12,4,0.2,"Becher",250,"quark"],
+ ["Halbfettquark",109,12.5,3.5,5,"Becher",250,"quark"],
+ ["Skyr nature",63,11,4,0.2,"Becher",170,"joghurt"],
+ ["Griechischer Joghurt 10 %",120,5,4,9.5,"Portion",150,"joghurt greek"],
+ ["Joghurt nature 3,5 %",64,3.8,4.7,3.5,"Becher",180,"jogurt"],
+ ["Hüttenkäse",98,12,3,4.3,"Becher",200,"cottage cheese huettenkaese"],
+ ["Vollmilch 3,5 %",64,3.3,4.8,3.5,"Glas",250,"milch"],
+ ["Milch Drink 2,7 %",58,3.3,4.8,2.7,"Glas",250,"milch"],
+ ["Proteinpudding",75,10,6,1.5,"Becher",200,"pudding high protein"],
+ ["Proteindrink (Milch)",62,10,5,0.3,"Flasche",330,"shake"],
+ ["Mozzarella",250,18,1,19,"Kugel",125,"kaese"],
+ ["Mozzarella light",165,19,1,9.5,"Kugel",125,"kaese"],
+ ["Gruyère",410,27,0,33,"Stück",30,"greyerzer kaese"],
+ ["Emmentaler",380,29,0,29,"Stück",30,"kaese"],
+ ["Parmesan",390,35,0,28,"EL gerieben",10,"kaese sbrinz"],
+ ["Feta",265,16,1,21,"Portion",50,"kaese"],
+ ["Butter",740,0.7,0.6,82,"Portion",10,""],
+ ["Ei",143,12.6,0.7,9.5,"Ei",55,"eier"],
+ ["Eiklar",48,11,0.7,0.2,"Eiklar",33,"eiweiss"],
+ ["Pouletbrust roh",110,23,0,1.5,"Portion",150,"huhn haehnchen chicken"],
+ ["Pouletbrust gebraten",165,31,0,3.6,"Portion",130,"huhn haehnchen chicken"],
+ ["Trutenbrust roh",105,23,0,1,"Portion",150,"truthahn pute"],
+ ["Rindshackfleisch mager 5 %",125,21,0,5,"Portion",150,"hack beef"],
+ ["Rindshackfleisch 15 %",215,18,0,15,"Portion",150,"hack beef"],
+ ["Rindsteak roh",140,22,0,5.5,"Steak",200,"entrecote beef"],
+ ["Schweinsfilet roh",108,21,0,2.5,"Portion",150,"schwein"],
+ ["Lachs roh",200,20,0,13,"Filet",125,"fisch salmon"],
+ ["Thon in Wasser, abgetropft",110,25,0,1,"Dose",120,"thunfisch tuna"],
+ ["Crevetten",85,19,0,1,"Portion",100,"garnelen shrimps"],
+ ["Bündnerfleisch",190,38,1,3.5,"Portion",40,"trockenfleisch"],
+ ["Kochschinken",110,19,1.5,3,"Scheibe",25,"schinken"],
+ ["Salami",380,22,1,32,"Portion",30,"wurst"],
+ ["Cervelat",270,12,1,24,"Stück",100,"wurst"],
+ ["Tofu natur",120,13,2,7,"Block",200,"vegan"],
+ ["Tempeh",190,19,9,11,"Portion",100,"vegan"],
+ ["Haferflocken",370,13,59,7,"Portion",50,"oats hafer"],
+ ["Müesli ungezuckert",360,10,62,6,"Portion",60,"muesli"],
+ ["Birchermüesli",130,4,18,4.5,"Portion",200,"bircher muesli"],
+ ["Reis roh",350,7,77,0.6,"Portion",80,""],
+ ["Reis gekocht",130,2.7,28,0.3,"Portion",200,""],
+ ["Teigwaren roh",355,12.5,71,1.5,"Portion",100,"pasta nudeln spaghetti"],
+ ["Teigwaren gekocht",150,5.5,30,0.8,"Portion",250,"pasta nudeln spaghetti"],
+ ["Vollkornteigwaren roh",340,14,63,2.5,"Portion",100,"pasta nudeln"],
+ ["Kartoffeln gekocht",75,2,16,0.1,"Portion",250,"hardoepfel"],
+ ["Süsskartoffel",86,1.6,20,0.1,"Stück",250,"suesskartoffel"],
+ ["Ruchbrot",240,8.5,46,1.5,"Scheibe",40,"brot"],
+ ["Vollkornbrot",220,8,40,1.5,"Scheibe",40,"brot"],
+ ["Zopf",330,9,50,10,"Scheibe",40,"brot butterzopf"],
+ ["Gipfeli",420,8,45,23,"Stück",60,"croissant"],
+ ["Knäckebrot",340,10,65,1.5,"Scheibe",10,"knaeckebrot"],
+ ["Tortilla-Wrap",300,8,50,7,"Wrap",60,"wrap"],
+ ["Quinoa roh",360,14,60,6,"Portion",70,""],
+ ["Couscous roh",360,12,72,1.5,"Portion",70,""],
+ ["Polenta roh",350,8,75,1.5,"Portion",70,"mais"],
+ ["Linsen roh",320,24,48,1.5,"Portion",70,""],
+ ["Linsen gekocht",116,9,20,0.4,"Portion",200,""],
+ ["Kichererbsen, abgetropft",120,7,16,2.5,"Dose",240,""],
+ ["Kidneybohnen, abgetropft",90,6.5,13,0.5,"Dose",240,"bohnen"],
+ ["Broccoli",34,2.8,4,0.4,"Portion",200,"brokkoli"],
+ ["Spinat",23,2.9,1.4,0.4,"Portion",150,""],
+ ["Tomate",18,0.9,3,0.2,"Stück",120,"tomaten"],
+ ["Gurke",12,0.6,2,0.1,"Portion",100,""],
+ ["Peperoni",30,1,5,0.3,"Stück",150,"paprika"],
+ ["Rüebli",36,0.9,7,0.2,"Stück",80,"karotte ruebli"],
+ ["Zucchetti",17,1.2,2.3,0.3,"Stück",200,"zucchini"],
+ ["Blattsalat",14,1.2,1.5,0.2,"Portion",80,"salat"],
+ ["Zwiebel",40,1.1,8,0.1,"Stück",80,""],
+ ["Champignons",22,3,0.5,0.3,"Portion",100,"pilze"],
+ ["Avocado",200,2,2,20,"halbe",70,""],
+ ["Mais aus der Dose",80,2.5,15,1.2,"Portion",70,""],
+ ["Erbsen",75,5,11,0.4,"Portion",100,""],
+ ["Banane",90,1.1,20,0.3,"Stück",120,""],
+ ["Apfel",55,0.3,13,0.2,"Stück",150,""],
+ ["Beeren gemischt",45,1,8,0.4,"Portion",125,"heidelbeeren himbeeren erdbeeren"],
+ ["Orange",47,1,9,0.2,"Stück",150,""],
+ ["Kiwi",60,1,12,0.6,"Stück",75,""],
+ ["Trauben",70,0.7,16,0.2,"Portion",100,""],
+ ["Datteln",290,2.5,65,0.4,"Stück",8,""],
+ ["Mandeln",600,21,6,52,"Handvoll",30,"nuesse"],
+ ["Baumnüsse",680,15,7,65,"Handvoll",30,"walnuesse nuesse"],
+ ["Erdnüsse",590,26,9,49,"Handvoll",30,"nuesse"],
+ ["Erdnussbutter",600,25,13,50,"EL",15,"peanut butter"],
+ ["Olivenöl",900,0,0,100,"EL",10,"oel"],
+ ["Rapsöl",900,0,0,100,"EL",10,"oel"],
+ ["Hummus",240,7,11,18,"Portion",50,""],
+ ["Whey-Proteinpulver",380,78,7,6,"Scoop",30,"protein shake whey"],
+ ["Veganes Proteinpulver",380,75,6,7,"Scoop",30,"protein shake erbsenprotein"],
+ ["Proteinriegel",350,32,30,11,"Riegel",60,"riegel bar"],
+ ["Hafermilch",45,1,6.5,1.5,"Glas",250,"haferdrink"],
+ ["Sojadrink ungesüsst",33,3.3,0.5,1.8,"Glas",250,"sojamilch"],
+ ["Orangensaft",45,0.7,10,0.2,"Glas",200,"saft"],
+ ["Cola",42,0,10.6,0,"Dose",330,""],
+ ["Bier",43,0.5,3.5,0,"Stange",300,""],
+ ["Rotwein",85,0,2.6,0,"Glas",150,"wein"],
+ ["Cappuccino",40,2,3,1.8,"Tasse",200,"kaffee"],
+ ["Kaffee schwarz",2,0.1,0,0,"Tasse",150,""],
+ ["Milchschokolade",540,7,57,31,"Reihe",25,"schoggi"],
+ ["Dunkle Schokolade 70 %",580,9,34,43,"Reihe",25,"schoggi"],
+ ["Chips",540,6,50,34,"Portion",30,""],
+ ["Glace Vanille",210,3.5,24,11,"Kugel",60,"eis"],
+ ["Gummibärchen",340,6.5,77,0.1,"Portion",30,"gummibaerchen"],
+ ["Reiswaffel",385,8,80,3,"Stück",8,""],
+ ["Honig",305,0.3,76,0,"TL",10,""],
+ ["Konfitüre",250,0.4,60,0.1,"TL",15,"marmelade konfituere"],
+ ["Zucker",400,0,100,0,"TL",5,""],
+ ["Ketchup",100,1.5,23,0.2,"EL",15,""],
+ ["Mayonnaise",680,1,3,75,"EL",15,""],
+ ["Pizza Margherita",240,10,32,8,"ganze Pizza",350,""],
+ ["Döner im Brot",220,12,20,10,"Stück",400,"kebab"],
+ ["Burger",250,13,25,11,"Stück",200,"hamburger"],
+ ["Spaghetti Bolognese",150,7,20,4.5,"Teller",400,"pasta"],
+ ["Älplermagronen",180,6.5,18,9,"Teller",350,"aelplermagronen"],
+ ["Rösti",150,2.5,17,8,"Portion",250,"roesti"],
+ ["Sushi Maki",150,5,28,1.5,"Stück",25,""]
+];
+const norm = s => String(s||"").toLowerCase().replace(/ä/g,"ae").replace(/ö/g,"oe").replace(/ü/g,"ue").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+function prepFood(f){ return {...f, _n: norm(f.name+" "+(f.alias||""))}; }
+/* Schweizer Nährwertdatenbank, BLV (Version 5.3, generische Lebensmittel), pro 100 g essbarer Anteil */
+/* [Name, kcal, Protein, Kohlenhydrate, Fett, Synonyme] */
+const BLV_RAW = [["Agar Agar",160,2.4,0,0.2,""],["Agavensirup",293,0.2,73.1,0,"Agavendicksaft"],["Älplermagronen, zubereitet",184,6.1,18.6,9.0,""],["Amaretti (Mandelgebäck)",451,7.6,75.7,12.4,""],["Ananas, gezuckert (Konserve)",87,0.4,20.2,0.2,""],["Ananas, roh",51,0.4,11.3,0.2,""],["Ananas, ungezuckert (Konserve)",51,0.4,11.3,0.2,""],["Apfel, gedünstet, abgetropft (ohne Zugabe von Zucker)",72,0.4,15.4,0.4,""],["Apfel, geschält, getrocknet",295,1.5,63.2,2.0,"Dörrapfel"],["Apfel, roh",55,0.3,11.7,0.3,""],["Apfelkuchen, gebacken (mit Blätterteig)",142,2.3,16.5,7.0,"Apfelwähe"],["Apfelkuchen, gebacken (mit Kuchenteig)",134,2.7,18.8,4.9,"Apfelwähe"],["Apfelmus, gezuckert (Konserve)",90,0.3,20.5,0.3,""],["Apfelmus, ungezuckert (Konserve)",55,0.3,11.7,0.3,""],["Apfelsaft",44,0.1,10.8,0.1,"Süssmost"],["Apfelwein, 4 vol%",32,0.0,2.5,0,"Apfelmost;Saurer Most;Cider"],["Apfelwein, 6.2 vol%",64,0.0,7.3,0,"Apfelmost;Saurer Most;Cider"],["Appenzeller, viertelfett",238,33.8,0,11.4,""],["Appenzeller, vollfett",386,24.8,0,31.7,""],["Aprikose, gedünstet, abgetropft (ohne Zugabe von Zucker)",60,1.0,12.5,0.1,"Marille"],["Aprikose, getrocknet",275,5.0,47.9,0.5,"Dörraprikose"],["Aprikose, gezuckert (Konserve)",84,0.7,19.0,0.1,"Marille"],["Aprikose, roh",48,0.8,10.0,0.1,"Marille"],["Aprikose, ungezuckert (Konserve)",48,0.8,10.0,0.1,"Marille"],["Aprikosenkuchen, gebacken (mit Blätterteig)",137,2.6,15.4,6.8,"Aprikosenwähe"],["Aprikosenkuchen, gebacken (mit Kuchenteig)",128,3.0,17.6,4.7,"Aprikosenwähe"],["Aubergine, gedünstet (ohne Zugabe von Fett und Salz)",28,1.2,3.9,0.2,"Eierfrucht"],["Aubergine, roh",23,1.0,3.1,0.2,"Eierfrucht"],["Auberginen-Piccata, zubereitet",169,5.3,9.1,11.8,""],["Auberginenscheiben, paniert, zubereitet",139,4.8,15.2,5.9,""],["Aufschnitt (Durchschnitt)",289,14.1,0.7,25.5,""],["Avocado, roh",144,1.8,0.8,14.2,""],["Bäckerhefe, gepresst",96,16.7,1.1,1.2,"Bierhefe"],["Bami Goreng, zubereitet",137,14.0,14.0,2.6,""],["Banane, gedörrt",370,3.9,80.7,1.8,"Bananenchips"],["Banane, getrocknet",273,3.0,60.2,1.0,""],["Banane, roh",95,1.1,21.0,0.3,""],["Basilikum, roh",46,3.1,5.1,0.8,""],["Basler Leckerli",404,6.9,74.8,7.6,""],["Bauernbratwurst, gebraten (ohne Zusatz von Fett un Salz)",270,21.1,0.2,20.4,""],["Bauernbratwurst, roh",243,16.9,0.2,19.3,"Schweinsbratwurst"],["Bauernbrot",240,9.0,44.5,2.0,"Burebrot"],["Bauernsalami",532,20.6,0.8,49.5,"Salami nach Bauernart"],["Bauernschüblig",524,21.3,0.3,48.5,""],["Baumnuss",742,15.9,7.0,70.8,"Walnuss"],["Baumnussbrot",338,8.9,30.9,18.6,""],["Béchamelsauce hausgemacht",148,4.3,10.2,9.9,""],["Beeren (Durchschnitt), gekocht (ohne Zugabe von Zucker)",44,0.8,7.6,0.5,""],["Beeren (Durchschnitt), roh",42,0.8,7.2,0.5,""],["Berliner",326,8.4,43.1,12.8,"Pfannkuchen"],["Berner Alpkäse",456,27.7,0,38.3,""],["Berner Hobelkäse",493,30.6,0,41.2,""],["Berner Zungenwurst",334,17.3,0,29.4,""],["Biber",464,10.3,56.9,19.9,""],["Bier Panache (Durchschnitt)",38,0.2,7.1,0,""],["Bierhefe, getrocknet",354,47.9,26.5,4.2,"Bäckerhefe;Trockenhefe;Hefepulver"],["Bierwurst",350,16.8,0,31.3,""],["Birchermüesli, zubereitet (ungezuckert)",87,2.7,11.1,3.1,""],["Birne, gedünstet, abgetropft (ohne Zugabe von Zucker)",75,0.5,15.8,0.4,""],["Birne, getrocknet",288,2.4,59.7,1.4,"Dörrbirne;Trockenbirne"],["Birne, gezuckert (Konserve)",92,0.4,21.0,0.3,""],["Birne, roh",58,0.4,12.2,0.3,""],["Birne, ungezuckert (Konserve)",58,0.4,12.2,0.3,""],["Birnenkuchen, gebacken (mit Blätterteig)",144,2.4,16.9,7.0,"Birnenwähe"],["Birnenkuchen, gebacken (mit Kuchenteig)",136,2.8,19.1,4.9,"Birnenwähe"],["Birnensaft",50,0.5,11.0,0.5,""],["Birnenweggen",358,5.0,56.6,10.4,""],["Blanc battu",43,7.6,2.9,0.1,""],["Blanc battu mit Früchten light",68,8.0,8.4,0.2,""],["Blätterteig hausgemacht (Butter), ungebacken",364,5.2,29.4,24.7,""],["Blätterteig hausgemacht (mit pflanzlichem Fett), ungebacken",358,5.2,29.4,24.1,""],["Blätterteigpastetli, Butter",564,5.8,43.1,40.5,""],["Blätterteigstängel",497,7.2,40.4,33.6,"Flûtes"],["Blattgemüse (Durchschnitt exkl. Salate), gedämpft (ohne Zugabe von Salz)",23,1.6,2.3,0.3,""],["Blattgemüse (Durchschnitt exkl. Salate), gedünstet (ohne Zugabe von Salz und Fett)",25,1.7,2.5,0.3,""],["Blattgemüse (Durchschnitt exkl. Salate), gekocht (ohne Zugabe von Salz und Fett)",24,1.6,2.4,0.3,""],["Blattsalat (Durchschnitt), roh",18,1.6,1.4,0.3,""],["Blauschimmelkäse (Durchschnitt)",361,19.1,0.2,31.5,""],["Blumenkohl, gedämpft (ohne Zugabe von Salz)",27,2.5,2.4,0.3,""],["Blumenkohl, roh",26,2.4,2.3,0.3,""],["Blutwurst",151,10.7,2.6,10.8,""],["Bohne (alle Arten), gekocht (ohne Zugabe von Fett und Salz)",114,7.8,15.2,0.6,""],["Bohne (alle Arten), getrocknet",305,20.9,40.7,1.5,"Weisse Bohne;Rote Bohne;Borlotti Bohne"],["Bohne, grün, gedämpft (ohne Zugabe von Salz)",34,2.3,4.0,0.2,"Gartenbohne"],["Bohne, grün, getrocknet",252,20.2,25.7,2.0,"Dörrbohne"],["Bohne, grün, roh",31,2.1,3.6,0.2,"Gartenbohne"],["Bolognaisesauce",96,6.3,8.3,4.0,"Tomaten-Hackfleischsauce"],["Bouillon, Fleisch, zubereitet",5,0.3,0.2,0.3,"Klare Brühe"],["Bouillon, Geflügel, zubereitet",5,0.3,0.3,0.3,"Klare Brühe"],["Bouillon, Gemüse, zubereitet",6,0.3,0.4,0.4,"Klare Brühe"],["Branchli (Milchschokolade mit Haselnusscrèmefüllung)",557,7.6,48.9,36.0,"Schokoladenstängeli"],["Branntwein aus Getreide (z.B. Whisky)",252,0.0,0.1,0,"Getreideschnaps"],["Branntwein aus Wein (z.B.Cognac)",240,0.0,2.0,0,""],["Branntwein aus Zuckerrohr (z.B. Rum)",234,0.0,0,0,"Zuckerrohrschnaps"],["Bratbutter",885,0.1,0,98.3,""],["Bratensauce, gebunden",53,1.6,4.6,3.0,""],["Bratensauce, klar",44,1.5,3.5,2.5,""],["Bresaola",166,32.4,0.4,3.9,""],["Brie, halbfett",200,24.0,0,11.5,""],["Brie, Rahm",335,16.0,0,30.0,""],["Brie, vollfett",300,21.8,0,23.5,""],["Broccoli, gedämpft (ohne Zugabe von Salz)",30,2.9,2.3,0.4,""],["Broccoli, roh",31,3.0,2.4,0.4,""],["Brombeere, roh",44,1.0,6.2,0.4,""],["Brombeerkuchen, gebacken (mit Blätterteig)",135,2.8,12.9,7.0,"Brombeerwähe"],["Brombeerkuchen, gebacken (mit Kuchenteig)",126,3.2,15.1,4.9,"Brombeerwähe"],["Brombeerkuchen, gebacken (mit süssem Mürbeteig)",199,3.2,19.1,11.3,""],["Brot (Durchschnitt)",265,9.2,44.6,4.7,""],["Brühwürste geräuchert (Durchschnitt)",263,14.3,0.4,22.7,""],["Brühwürste ungeräuchert (Durchschnitt)",256,13.2,0.8,22.2,""],["Brunnenkresse, roh",17,2.2,0.3,0.2,""],["Brunsli",493,12.7,41.5,28.9,""],["Buchweizen, Korn geschält",343,9.1,71.0,1.7,""],["Buchweizenmehl",344,12.0,64.5,2.8,""],["Bündner Gerstensuppe",42,1.4,6.7,0.9,""],["Bürli (halbweiss)",216,8.6,41.6,1.0,""],["Buttergipfeli, hell",432,8.8,43.5,24.2,""],["Buttergipfeli, Vollkorn",366,6.4,38.7,19.8,"Rusticogipfeli"],["Buttermilch",33,3.2,4.0,0.5,""],["Butterweggli",310,9.4,47.3,8.7,""],["Butterzopf",326,9.0,45.7,11.4,""],["Butterzopf, Vollkorn",272,9.4,40.5,6.4,""],["Café crème, ungezuckert",14,0.3,0.6,1.1,""],["Cake Financier",426,9.8,37.4,25.5,""],["Calimocho (Rotwein mit Cola)",58,0.0,5.1,0,""],["Camembert, halbfett",178,22.0,0,10.0,""],["Camembert, Rahm",352,16.4,0,31.7,""],["Camembert, vollfett",299,21.2,0,23.7,""],["Cannelloni mit Fleischfüllung, zubereitet",193,10.4,14.6,9.9,""],["Cannelloni mit Spinat-Ricotta-Füllung, zubereitet",222,8.7,15.2,13.7,""],["Cappuccino (ohne Schokoladenpulver), ungezuckert",37,1.8,2.6,2.2,""],["Capuns, zubereitet",168,8.1,10.1,10.4,"Mangoldwickel"],["Cashewnuss",593,18.2,26.6,45.2,"Cashewkern"],["Cervelat",249,13.4,0.5,21.5,"Chlöpfer;Stumpen;Bockwurst"],["Champignon (Konserve)",19,2.3,0.5,0.3,""],["Champignon, gedünstet (ohne Zugabe von Fett und Salz)",27,3.5,1.3,0.4,""],["Champignon, roh",22,2.9,1.1,0.3,""],["Chicorée, gedämpft (ohne Zugabe von Salz)",14,1.0,0.7,0.2,"Brüsseler Endivie"],["Chicorée, roh",14,1.0,0.7,0.2,"Brüsseler Endivie"],["Chili con carne, zubereitet",125,10.8,9.2,4.4,""],["Chinakohl, gedünstet (ohne Zugabe von Fett und Salz)",16,1.2,1.2,0.3,"Pekingkohl;Selleriekohl;Japankohl"],["Chinakohl, roh",16,1.1,1.2,0.3,"Pekingkohl;Selleriekohl;Japankohl"],["Chräbeli (Anisgebäck)",366,8.5,75.3,3.0,""],["Cicorino rot, roh",19,1.4,1.6,0.1,""],["Cocktailsauce, selbst zubereitet mit Rapsöl-Mayonnaise",695,2.4,3.9,74.4,""],["Colagetränk, gezuckert",40,0.0,10.0,0,""],["Colagetränk, mit Süssstoffen",0,0.0,0,0,""],["Coleslaw Salat, zubereitet",120,1.7,4.2,10.3,""],["Coppa",319,28.8,0.3,22.5,""],["Cordon Bleu aus Kalbsplätzli, gebraten",240,23.9,10.2,11.4,""],["Cordon Bleu aus Schweinsplätzli, gebraten",249,24.2,10.2,12.2,""],["Cornflakes",359,7.2,79.1,0.6,""],["Cotechino",450,17.2,0,42.3,""],["Cotto (Fleischerzeugnis)",93,15.7,0.6,3.1,""],["Cracker, Salzgebäck, Apérogebäck",449,9.2,66.3,15.9,""],["Crèmeschnitte",318,3.5,34.6,18.3,""],["Crêpes mit Camembert, zubereitet",249,11.9,14.9,15.6,""],["Crêpes mit Champignonfüllung, zubereitet",137,5.3,7.9,9.0,""],["Crêpes mit Gemüsefüllung, zubereitet",165,6.0,13.6,9.3,""],["Crêpes mit Nutella, zubereitet",376,7.7,35.7,22.1,""],["Crêpes mit Schinken, zubereitet",193,12.8,13.2,9.8,""],["Crêpes mit Speck, zubereitet",253,11.2,15.0,16.4,""],["Crêpes mit Zimt und Zucker, zubereitet",256,8.2,29.0,11.7,""],["Crêpes nature, zubereitet",234,9.3,19.0,13.3,""],["Crevettencocktail, zubereitet",174,5.5,4.6,13.2,""],["Dattel, getrocknet",305,2.5,69.0,0.5,""],["Dinkelmehl, Ruch, Typ 1100",348,14.3,65.0,2.2,""],["Dinkelmehl, Vollkorn, Typ 1900",346,15.6,60.0,2.7,""],["Dinkelmehl, weiss, Typ 550",348,13.3,69.0,1.5,""],["Distelöl",806,0.0,0,89.6,""],["Doppelrahm, pasteurisiert",425,2.1,2.8,45.0,""],["Dorsch, Filet, gedämpft (ohne Zusatz von Fett und Salz)",95,22.6,0,0.5,""],["Dorsch, roh",76,18.1,0,0.4,"Kabeljau"],["Dulce de Leche",300,5.9,52.6,7.3,"Milchkonfitüre"],["Edelkastanie, roh",198,2.9,42.4,1.5,"Marroni"],["Egli, roh",78,18.0,0,0.7,"Flussbarsch"],["Eieromeletten mit Käse, zubereitet",195,13.8,1.2,14.9,"Französische Omeletten"],["Eieromeletten mit Schinken, zubereitet",146,12.6,1.3,10.0,"Französische Omeletten"],["Eieromeletten mit Speck, zubereitet",182,12.3,1.3,14.2,"Französische Omeletten"],["Eieromeletten, zubereitet",154,11.1,1.4,11.5,"Französische Omeletten"],["Eierschwamm, gedünstet (ohne Zugabe von Fett und Salz)",26,2.0,0.2,0.6,"Pfifferling"],["Eierschwamm, roh",21,1.6,0.2,0.5,"Pfifferling"],["Eisbergsalat, roh",16,1.0,1.6,0.2,""],["Eistee, gezuckert",30,0.0,7.5,0,""],["Emmentaler, vollfett",411,29.0,0,32.6,""],["Endivie, roh",16,1.8,1.2,0.2,"Frisée Salat"],["Engadiner Nusstorte",486,7.0,49.9,28.3,""],["Erbse (Konserve)",88,4.8,12.8,0.8,""],["Erbse (Konserve), aufgewärmt (ohne Zugabe von Salz)",94,5.1,13.6,0.9,""],["Erbse, grün, gedämpft (ohne Zugabe von Salz)",104,6.9,13.8,0.8,""],["Erbse, grün, roh",90,6.0,12.0,0.7,""],["Erbse, reif, getrocknet",331,21.3,51.9,1.7,"Erbse, geschält, getrocknet"],["Erbse, reif, getrocknet, gekocht (ohne Zusatz von Fett und Salz)",142,9.1,22.3,0.7,""],["Erbsen und Karotten (Konserve)",67,3.8,9.6,0.5,""],["Erbsen und Karotten (Konserve), aufgewärmt (ohne Zugabe von Salz)",71,4.0,10.2,0.5,""],["Erdbeere, roh",40,0.7,7.0,0.5,""],["Erdnuss",600,26.0,11.2,48.5,""],["Erdnuss-Flips",506,13.2,56.5,24.2,""],["Erdnuss, geröstet",593,25.3,8.6,49.0,""],["Erdnussbutter",638,22.6,12.2,53.7,""],["Erdnussöl",809,0.0,0,89.9,""],["Espresso crème, ungezuckert",28,0.5,0.9,2.5,""],["Essig",22,0.1,0.7,0,""],["Essig-Öl-Salatsauce (mit Rapsöl)",326,0.7,4.6,33.0,""],["Feige, getrocknet",273,3.2,56.8,1.2,"Dörrfeige"],["Feige, roh",74,0.9,15.5,0.3,""],["Felche, roh",101,19.2,0,2.7,""],["Fenchel, gedämpft (ohne Zugabe von Salz)",23,1.1,2.3,0.3,""],["Fenchel, roh",23,1.1,2.3,0.3,""],["Fisch (Durchschnitt), Filet, gedämpft (ohne Zusatz von Fett und Salz)",171,25.3,0,7.8,""],["Fisch (Durchschnitt), roh",137,20.2,0,6.2,""],["Fischstäbchen (paniert und vorfritiert), gebraten in HOLL-Rapsöl",310,17.6,16.6,19.1,""],["Fischstäbchen (paniert und vorfritiert), im Ofen gebacken (ohne Zugabe von Fett)",264,18.4,17.4,13.2,""],["Fischstäbchen, paniert und vorfritiert",232,16.2,15.3,11.6,""],["Flammenkuchen, gebacken",268,9.3,22.9,15.1,"Flammkuchen"],["Fleisch (Durchschnitt exkl. Innereien), roh",145,21.5,0,6.6,""],["Fleischkäse",256,12.5,1.4,22.3,""],["Fleischlasagne, zubereitet",156,9.7,12.9,6.9,""],["Flunder, Filet, gedämpft (ohne Zusatz von Fett und Salz)",90,20.6,0,0.9,""],["Flunder, roh",72,16.5,0,0.7,""],["Fondue alkoholfrei, zubereitet",281,19.4,1.6,21.8,""],["Fondue klassisch, zubereitet",308,20.6,1.1,23.1,""],["Fondue moitié-moitié, zubereitet",282,17.6,1.0,21.4,""],["Forelle, ganz, gekocht (ohne Zusatz von Fett und Salz)",159,20.0,0,8.8,""],["Forelle, roh",127,16.0,0,7.0,"Bachforelle"],["Fotzelschnitte ungezuckert",224,8.0,24.9,10.0,""],["Freiburger Vacherin",372,24.0,0,30.4,""],["Frischkäse, Doppelrahm",338,7.9,4.5,32.1,""],["Früchte (Durchschnitt), gekocht (ohne Zugabe von Zucker)",64,0.6,13.1,0.4,""],["Früchte (Durchschnitt), getrocknet",276,2.8,58.1,0.9,"Dörrfrüchte (Durchschnitt);Früchte, gedörrt (Durchschnitt)"],["Früchte (Durchschnitt), roh",57,0.7,11.8,0.3,""],["Fruchtsaft-Schorle (Durchschnitt, 60% Saft - 40% Wasser), ungezuckert",31,0.2,7.2,0.2,""],["Fruchtsaft (Durchschnitt), ungezuckert",52,0.3,12.0,0.3,""],["Fruchtsalat, gezuckert (Konserve)",78,0.5,17.7,0.2,"Fruit Cocktail"],["Fruchtsalat, ungezuckert (Konserve)",53,0.5,11.3,0.2,"Fruit Cocktail"],["Fruchtwähe/-kuchen (Durchschnitt)",155,2.9,16.8,7.7,""],["Fruchtwähe/-kuchen mit Blätterteig (Durchschnitt)",136,2.6,14.7,6.9,""],["Fruchtwähe/-kuchen mit Kuchenteig (Durchschnitt)",128,3.0,16.9,4.8,""],["Fruchtwähe/-kuchen mit süssem Mürbeteig (Durchschnitt)",200,3.2,18.8,11.4,""],["Fünfkornbier",40,0.6,2.0,0,""],["Garnele, gekocht",59,12.0,1.3,0.6,"Shrimp;Scampi;Crevette"],["Garnele, roh",56,11.4,1.2,0.6,"Shrimp;Scampi;Crevette"],["Geflügelfleisch (Durchschnitt exkl. Innereien), roh",131,21.9,0,4.8,""],["Geflügelfleisch mit Haut (Durchschnitt), roh",151,20.7,0,7.6,""],["Geflügelfleisch ohne Haut (Durchschnitt exkl. Innereien), roh",114,22.9,0.1,2.5,""],["Geflügellyoner",205,13.5,0.9,16.4,""],["Gehacktes (Durchschnitt aus Rind, Kalb, Schwein, Poulet), gebraten (ohne Zusatz von Fett und Salz)",179,27.3,0,7.8,""],["Gehacktes (Durchschnitt aus Rind, Kalb, Schwein, Poulet), roh",142,21.6,0,6.2,""],["Gemüse (Durchschnitt), roh",27,1.3,3.7,0.3,""],["Gemüsegratin, gebacken",57,3.0,2.3,3.6,""],["Gemüselasagne, zubereitet",135,4.8,11.7,7.4,""],["Gerstenflocken",330,7.9,66.1,1.5,""],["Gerstenflocken, Vollkorn",330,7.9,66.1,1.5,""],["Gerstotto, gekocht",136,3.4,24.8,2.2,""],["Geschnetzeltes (Durchschnitt aus Rind, Kalb, Schwein, Geflügel), gebraten (ohne Zusatz von Fett und Salz)",161,30.0,0.1,4.5,""],["Geschnetzeltes (Durchschnitt aus Rind, Kalb, Schwein, Geflügel), roh",118,21.9,0.1,3.3,""],["Getreideflocken (Durchschnitt)",344,10.2,63.9,3.3,""],["Gipfeli (Durchschnitt)",406,8.0,40.4,23.0,""],["Glarner Schabziger",134,32.3,0,0.5,"Glarner Kräuterkäse"],["Gorgonzola",359,19.4,0.1,31.2,""],["Grapefruit, roh",30,0.7,5.9,0.1,"Pampelmuse"],["Greyerzer, vollfett",399,27.0,0,32.0,"Gruyère"],["Griessbrei, zubereitet (mit teilentrahmter Milch)",95,4.8,12.0,3.0,""],["Griessbrei, zubereitet (mit Vollmilch)",95,4.8,12.0,3.0,""],["Griessschnitte, zubereitet (mit teilentrahmter Milch)",146,6.3,15.4,6.4,""],["Griessschnitte, zubereitet (mit Vollmilch)",156,6.3,15.4,7.5,""],["Grittibänz",330,9.2,46.9,11.2,""],["Gugelhopf Grossmutter Art",459,8.3,32.7,32.1,""],["Gulaschsuppe",67,4.8,6.3,2.4,""],["Gummibonbon mit Fruchtessenz",341,6.6,78.6,0,""],["Gurke, in Essig eingelegt",14,0.7,2.1,0.1,"Essiggurke;Cornichon"],["Gurke, roh",13,0.7,2.0,0.1,"Salatgurke"],["Hackbraten, im Ofen gebacken",197,17.1,8.2,10.5,""],["Hackplätzli (Rind), gebraten in Rapsöl HOLL",204,20.4,6.4,10.6,""],["Haferbrei, zubereitet (mit teilentrahmter Milch)",133,6.4,18.3,3.6,""],["Haferbrei, zubereitet (mit Vollmilch)",150,6.4,16.0,6.3,""],["Haferflocken",372,13.5,57.5,7.5,""],["Haferkleie",366,17.3,50.8,7.0,""],["Halbfettbutter",388,4.0,3.5,39.8,""],["Halbrahm, pasteurisiert",274,2.3,3.3,27.9,""],["Halbrahm, UHT",251,2.6,3.7,25.1,""],["Halbweissbrot",240,9.4,46.4,1.1,""],["Hart- und Halbhartkäse, vollfett (Durchschnitt)",400,27.2,0,32.1,""],["Hartkaramellen, Hartbonbons",385,0.5,95.0,0.3,""],["Hartweizengriess, trocken",351,12.6,70.4,1.2,""],["Hase (Durchschnitt), roh",115,22.0,0,3.0,""],["Haselnuss",643,15.2,6.9,59.5,""],["Haselnuss-Schokolade-Brotaufstrich",546,5.8,55.6,32.7,""],["Haselnusskekse",473,6.7,47.4,27.7,"Haselnussguetzli"],["Haselnussmakrone",533,11.4,35.5,37.0,""],["Haselnussstängeli",562,10.1,46.1,36.7,""],["Hecht, roh",81,18.4,0,0.8,""],["Hefeteig (mit Butter), süss, ungebacken",311,8.6,43.2,11.1,""],["Hefeteig (mit pflanzlichem Fett), süss, ungebacken",304,9.1,40.0,11.5,""],["Heidelbeere, roh",58,0.6,11.3,0.5,""],["Heilbutt, roh",118,20.6,0,3.9,""],["Himbeere, roh",52,1.2,7.0,0.6,""],["Hinterschinken",104,20.2,0.7,2.3,""],["Hirsch (Durchschnitt), roh",112,20.6,0,3.3,""],["Hirsch, Entrecôte, roh",111,23.1,0,2.1,""],["Hirse, Korn geschält",357,9.8,68.8,3.9,""],["Hirseflocken, Vollkorn",357,9.8,68.8,3.9,""],["Hirsotto, gekocht",145,3.6,24.9,3.1,""],["Hollandaisesauce",211,3.0,9.3,18.0,""],["Holunderbeere, schwarz, roh",52,2.5,7.4,0.5,""],["Honig (Blütenhonig)",306,0.4,76.0,0,""],["Honigmelone, roh",38,0.7,8.0,0.1,"Zuckermelone"],["Hot Dog in Weissbrot mit Ketchup und Senf",230,9.1,32.3,6.7,""],["Hühnerei, ganz, festgekocht",157,13.2,0.3,11.4,""],["Hühnerei, ganz, roh",142,11.9,0.3,10.3,""],["Hühnereigelb, roh (Eidotter)",350,16.5,0.2,31.5,""],["Hühnereiweiss, roh (Eiklar)",44,10.5,0.3,0.1,""],["Hülsenfrüchte (Durchschnitt), gekocht (ohne Zugabe von Fett und Salz)",138,9.7,16.4,2.6,""],["Hülsenfrüchte (Durchschnitt), getrocknet",335,25.1,39.3,4.9,""],["Hüttenkäse, nature",101,12.7,2.4,4.5,"Cottage cheese"],["Instant-Kartoffelstock, zubereitet (mit Wasser und Butter)",81,2.0,11.5,2.8,""],["Jägersauce",58,2.2,8.0,1.8,""],["Joghurt-Salatsauce (ohne Öl)",68,3.7,5.7,3.3,""],["Joghurt Bifidus, nature",49,4.1,4.5,3.6,""],["Joghurt gezuckert (Durchschnitt)",105,3.8,14.7,3.4,""],["Joghurt mit Aroma, mager, mit Süssstoffen",48,4.7,7.0,0.1,""],["Joghurt mit Früchten, mager, mit Süssstoffen",50,4.7,7.0,0.1,""],["Joghurt, Erdbeer",101,3.5,15.2,2.7,""],["Joghurt, Haselnuss",119,3.9,15.0,4.6,""],["Joghurt, Mokka",100,3.8,14.1,3.1,""],["Joghurt, Mokka, Bio",96,3.5,13.1,3.3,""],["Joghurt, nature",66,4.0,4.5,3.6,""],["Joghurt, nature, mager",40,4.3,5.5,0.1,""],["Joghurt, Schokolade",120,4.0,16.9,3.9,""],["Joghurt, Vanille",98,3.8,14.0,3.0,""],["Johannisbeere, rot, roh",45,1.1,5.0,0.5,""],["Johannisbeere, schwarz, roh",58,1.3,9.0,0.3,""],["Johannisbeerkuchen, gebacken (mit Blätterteig)",135,2.8,12.1,7.1,"Johannisbeerwähe"],["Johannisbeerkuchen, gebacken (mit Kuchenteig)",127,3.2,14.3,5.0,""],["Johannisbeerkuchen, gebacken (mit süssem Mürbeteig)",200,3.3,18.4,11.4,""],["Kaffee löslich, Pulver",253,11.2,42.6,0,"Instant-Kaffee"],["Kaffee, schwarz, ungezuckert",2,0.1,0.3,0,""],["Kaffeerahm",161,2.7,3.8,15.0,""],["Kakaopulver",408,19.8,10.8,24.5,""],["Kaki, roh",71,0.7,15.3,0.2,""],["Kalb, Brust, gekocht (ohne Zugabe von Fett und Salz)",291,26.1,0,20.7,""],["Kalb, Brust, roh",204,18.3,0,14.5,""],["Kalb, Eckstück, roh",103,22.2,0,1.6,"Plätzli"],["Kalb, Filet, roh",119,21.2,0,3.8,""],["Kalb, Gehacktes, roh",104,20.5,0,2.4,"Hackfleisch"],["Kalb, Geschnetzeltes, gebraten (ohne Zugabe von Fett und Salz)",132,29.7,0,1.5,""],["Kalb, Geschnetzeltes, roh",98,22.0,0,1.1,""],["Kalb, Haxe, geschmort (ohne Zugabe von Fett und Salz)",191,32.3,0,6.9,""],["Kalb, Haxe, roh",122,20.7,0,4.4,""],["Kalb, Kotelett, roh",161,20.7,0,8.7,""],["Kalb, Leber, roh",135,19.6,4.6,4.2,""],["Kalb, Milken, roh",99,17.2,0,3.4,"Bries"],["Kalb, Niere, roh",112,15.8,1.0,5.0,""],["Kalb, Nierstück, Steak, gebraten (ohne Zugabe von Fett und Salz)",160,28.6,0,5.1,""],["Kalb, Nierstück, Steak, roh",113,22.8,0,2.4,""],["Kalb, Runder Mocken, roh",104,21.9,0,1.8,"Saftplätzli"],["Kalb, Schulter, Braten, im Ofen gebraten (ohne Zugabe von Fett und Salz)",185,30.1,0,7.2,""],["Kalb, Schulter, Braten, roh",124,20.2,0,4.8,""],["Kalb, Voressen, roh",102,20.0,0,2.4,"Ragout"],["Kalb, Zunge, roh",181,17.2,1.9,11.6,""],["Kalbfleisch (Durchschnitt exkl. Innereien, Kotelett), roh",128,21.1,0,4.8,""],["Kalbsbratwurst",228,12.5,1.2,19.2,""],["Kalbspiccata, zubereitet",223,23.3,5.5,11.9,""],["Kalbsplätzli, gebraten (ohne Zugabe von Fett und Salz)",140,30.0,0,2.2,""],["Kalbsplätzli, gebraten in HOLL-Rapsöl",196,28.2,0,9.2,""],["Kalbsragout mit Sauce, zubereitet",91,11.6,3.0,3.5,"Voressen"],["Kalmar, roh",83,16.0,2.3,1.1,"Seppia;Polpo;Calamare;Tintenfisch"],["Kaninchen (Durchschnitt), gekocht (ohne Zusatz von Fett und Salz)",205,28.1,0,10.3,""],["Kaninchen (Durchschnitt), roh",150,20.5,0,7.5,""],["Kaninchen, Filet, roh",111,24.3,0,1.5,""],["Karotte, gedämpft (ohne Zugabe von Salz)",41,0.9,7.3,0.3,""],["Karotte, roh",38,0.8,6.6,0.3,""],["Karottensaft",33,0.7,6.8,0.1,""],["Kartoffel, geschält, gedämpft (ohne Zugabe von Salz)",77,2.0,15.9,0.1,"Gschwellti"],["Kartoffel, geschält, roh",76,2.0,15.6,0.1,""],["Kartoffelflocken, mit Milchpulver und Salz (Instant-Kartoffelstock)",366,11.3,65.5,5.4,"Instant-Kartoffelstock"],["Kartoffelgratin dauphinois, zubereitet",128,2.6,11.3,7.8,""],["Kartoffelgratin Savoyer Art, zubereitet",75,2.2,10.6,2.3,""],["Kartoffelsalat mit Essig-Öl-Sauce",97,1.7,13.1,3.8,""],["Kartoffelsalat mit Mayonnaise-Joghurt-Sauce",82,1.8,12.6,2.2,""],["Kartoffelstärke",336,0.6,83.1,0.1,""],["Kartoffelstock, zubereitet (mit Rahm und Butter)",140,2.0,13.2,8.4,""],["Kartoffelstock, zubereitet (mit teilentrahmter Milch und Butter)",90,2.2,13.5,2.6,""],["Kartoffelstock, zubereitet (mit Vollmilch und Butter)",91,2.2,13.5,2.8,""],["Käse in Salzlake (Kuhmilch)",262,17.5,1.4,20.7,""],["Käse in Salzlake (Schaf- und Ziegenmilch)",243,17.0,1.5,18.8,"Feta"],["Käsekuchen, gebacken (mit Blätterteig)",304,14.4,11.7,22.0,"Käsewähe"],["Käsekuchen, gebacken (mit Kuchenteig)",293,14.9,14.6,19.2,"Käsewähe"],["Käsereibutter",746,0.4,0.6,82.5,""],["Käseschnitte, zubereitet",272,14.8,26.0,11.5,""],["Kebab im Fladenbrot",125,7.7,14.5,3.7,""],["Kefe, gedämpft (ohne Zugabe von Salz)",77,4.6,11.4,0.2,"Kiefelerbse;Zuckerschote"],["Kefe, roh",68,4.0,10.0,0.2,"Kiefelerbse;Zuckerschote"],["Ketchup",117,2.0,26.0,0.4,""],["Kichererbse, gekocht (ohne Zugabe von Fett und Salz)",131,7.4,17.7,2.0,""],["Kichererbse, getrocknet",327,18.6,44.3,4.9,""],["Kirsch",245,0.0,0,0,"Kirschbranntwein;Kirschwasser;Kirschschnaps;Kirschenbrand"],["Kirsche, gedünstet, abgetropft (ohne Zugabe von Zucker)",86,1.5,17.6,0.6,""],["Kirsche, roh",74,1.3,15.3,0.5,""],["Kirschenkuchen, gebacken (mit Blätterteig)",154,3.0,18.9,7.1,"Kirschenwähe"],["Kirschenkuchen, gebacken (mit Kuchenteig)",146,3.4,21.1,5.0,"Kirschenwähe"],["Kiwi, roh",54,1.1,9.9,0.6,""],["Knäckebrot, Vollkorn",327,10.4,62.4,1.8,""],["Knäckebrot, Vollkorn mit Leinsamen",340,11.8,56.1,4.7,""],["Knäckebrot, Vollkorn mit Sesam",353,11.3,57.1,6.6,""],["Knoblauch, roh",136,7.0,24.5,0.5,""],["Knollensellerie, gedämpft (ohne Zugabe von Salz)",30,1.6,2.6,0.3,""],["Knollensellerie, roh",28,1.5,2.4,0.3,""],["Knöpflimehl",350,12.4,70.5,1.2,"Spätzlimehl"],["Kochbutter",745,0.5,0.7,82.2,""],["Kochpökelware (Durchschnitt)",222,19.8,0.7,15.6,""],["Kochsalz mit Jod",0,0.0,0,0,""],["Kochsalz mit Jod und Fluor",0,0.0,0,0,"Speisesalz"],["Kochsalz ohne Jod und Fluor",0,0.0,0,0,"Speisesalz"],["Kochspeck",322,17.8,0.6,27.6,""],["Kochwürste (Durchschnitt)",314,15.8,1.2,27.2,""],["Kohlgemüse (Durchschnitt), gekocht (ohne Zugabe von Salz und Fett)",29,2.2,3.0,0.3,""],["Kohlgemüse (Durchschnitt), roh",29,2.2,3.0,0.3,""],["Kohlrabi, gedämpft (ohne Zugabe von Salz)",30,2.1,4.1,0.2,"Rübkohl"],["Kohlrabi, roh",27,1.9,3.7,0.2,"Rübkohl"],["Kokosfett",894,0.8,0,99.0,""],["Kokosmakronen",554,5.9,35.8,40.2,""],["Kokosnuss",497,8.9,16.0,42.0,""],["Kokosnuss, getrocknet (Kokosrapseln, Kokosflocken)",660,6.2,6.4,63.3,""],["Kondensmilch, gezuckert",339,8.0,54.3,10.0,""],["Kondensmilch, ungezuckert",132,6.5,9.7,7.5,""],["Konfitüre",246,0.5,58.7,0.5,"Marmelade"],["Konfitüre, energievermindert, mit Süssstoffen",136,0.5,31.9,0.5,"Marmelade"],["Kopfsalat, roh",14,1.2,1.1,0.2,""],["Kotelett (Durchschnitt aus Kalb, Schwein, Lamm), gebraten (ohne Zusatz von Fett und Salz)",250,30.0,0,14.4,""],["Kotelett (Durchschnitt aus Kalb, Schwein, Lamm), roh",177,21.3,0,10.2,""],["Krustentiere (Durchschnitt), roh",75,15.5,1.0,1.0,""],["Kuchenteig (mit Butter), ungebacken",329,6.8,38.7,15.9,"Wähenteig"],["Kuchenteig (mit pflanzlichem Fett), ungebacken",325,6.8,38.7,15.5,"Wähenteig"],["Kürbis-Piccata, zubereitet",165,4.7,9.0,12.0,""],["Kürbiskerne",603,32.6,4.7,49.1,""],["Kürbisscheiben, paniert, zubereitet",140,4.4,16.7,5.8,""],["Lachs, geräuchert",167,23.2,0,8.2,""],["Lachs, wild, roh",182,19.7,0,11.5,""],["Lachs, Zucht, Filet, gedämpft (ohne Zusatz von Fett und Salz)",251,24.9,0,16.8,""],["Lachs, Zucht, roh",200,19.9,0,13.4,""],["Lamm, Filet, medium\" gebraten (ohne Zusatz von Fett und Salz)\"",149,27.2,0,4.5,""],["Lamm, Filet, roh",112,20.4,0,3.4,""],["Lamm, Gigot, gebraten (ohne Zusatz von Fett und Salz)",230,30.1,0,12.2,""],["Lamm, Gigot, roh (Schweiz, Neuseeland)",155,20.2,0,8.2,"Keule"],["Lamm, Kotelett, roh (Schweiz)",179,20.2,0,10.9,""],["Lamm, Nierstück, roh (Australien, Neuseeland)",117,21.8,0,3.3,""],["Lamm, Racks, roh (Australien, Neuseeland)",156,20.3,0,8.3,""],["Lamm, Voressen, roh (Schweiz)",154,19.6,0,8.4,"Ragout"],["Lamm/Schaf (Durchschnitt exkl. Innereien, Kotelett), roh",134,20.5,0,5.8,""],["Lammragout mit Sauce, zubereitet",123,11.7,3.1,7.0,"Voressen"],["Landjäger",491,26.6,0,42.7,""],["Latte macchiato, ungezuckert",47,2.3,3.2,2.8,""],["Lattich, roh",16,1.2,1.3,0.3,""],["Lauch, gedünstet (ohne Zugabe von Fett und Salz)",33,1.8,4.2,0.3,""],["Lauch, roh",30,1.6,3.7,0.3,""],["Laugenbrötli",277,8.8,48.4,4.8,"Silserli"],["Laugengebäck trocken (Bretzel, Sticks)",360,8.6,72.1,4.0,""],["Laugengipfeli",419,8.7,38.9,25.0,"Silsergipfeli"],["Leber (Durchschnitt aus Rind, Kalb, Schwein, Geflügel), roh",226,17.8,2.8,15.9,""],["Leber (Durchschnitt aus Rind, Kalb, Schwein, Geglügel), gebraten (ohne Zusatz von Fett und Salz)",275,21.7,3.4,19.4,""],["Leberwurst",292,20.8,0.5,22.9,""],["Lebkuchen",405,6.5,61.6,13.8,""],["Lebkuchen mit Schokoladeüberzug",445,6.5,60.2,19.0,""],["Leinsamen",472,17.9,10.8,33.6,""],["Lemon Curd",320,6.0,37.5,16.2,"Zitronencrème"],["Limburger (Münster)",275,20.4,0,21.4,""],["Limonade, mit Aroma, gezuckert",38,0.0,9.5,0,""],["Linse, ganz, gekocht (ohne Zugabe von Fett und Salz)",121,8.8,18.5,0.4,""],["Linse, ganz, getrocknet",324,24.4,44.8,1.5,""],["Linse, geschält, gekocht (ohne Zugabe von Fett und Salz)",139,11.3,20.0,0.6,""],["Linse, geschält, getrocknet",334,27.0,48.0,1.5,""],["Linzertorte",425,7.5,43.7,23.6,""],["Löffelbiscuit",414,12.2,71.8,8.3,""],["Luganighe",459,17.1,0.5,43.0,""],["Lyoner",244,11.5,0.5,21.8,""],["Madeleine",346,7.5,52.2,11.6,""],["Magermilch, UHT",33,3.4,4.7,0.1,""],["Magermilchpulver",356,35.5,51.5,0.9,""],["Mailänderli",431,7.1,53.1,20.8,""],["Mais-Chips (Apérogebäck)",509,7.8,56.0,27.2,""],["Mais, gedämpft (ohne Zugabe von Salz)",105,3.8,17.8,1.4,"Zuckermais;Gemüsemais"],["Mais, roh",92,3.3,15.7,1.2,"Zuckermais;Gemüsemais"],["Maisgriess, gekocht",79,2.0,16.7,0.2,"Polenta"],["Maisgriess, trocken",350,8.8,73.8,1.1,"Polenta"],["Maiskeimöl",809,0.0,0,89.9,""],["Maiskölbchen, in Essig eingelegt",119,3.4,21.0,1.4,""],["Maisstärke",354,0.3,88.0,0,""],["Mandarine, roh",47,0.7,10.0,0.2,""],["Mandel",576,21.2,4.0,49.9,""],["Mandel, geröstet, gesalzen",631,21.2,7.2,55.2,""],["Mandel, ohne Fett geröstet, gesalzen",620,22.1,10.3,52.1,""],["Mango, roh",62,0.6,13.4,0.2,""],["Mangold, gedämpft (ohne Zugabe von Salz)",31,2.8,3.6,0.3,"Krautstiel"],["Mangold, roh",23,2.1,2.7,0.2,"Krautstiel"],["Margarine",724,0.5,0.5,80.0,""],["Marmorkuchen",357,7.3,42.6,17.2,"Marmorcake"],["Marzipan",467,6.1,68.6,17.6,""],["Mascarpone",453,7.6,0,47.0,""],["Mayonnaise",742,1.1,0.5,81.7,""],["Mayonnaise, kalorienvermindert",327,0.9,3.2,34.5,""],["Mayonnaise, selbst zubereitet mit Rapsöl",791,2.4,0.2,86.7,""],["Mehl (Durchschnitt)",343,12.4,67.8,1.4,""],["Mehl, hell (Durchschnitt)",344,12.2,68.9,1.3,""],["Mehlomeletten mit Champignonfüllung, zubereitet",124,5.3,10.8,6.3,""],["Mehlomeletten mit Gemüsefüllung, zubereitet",137,5.7,16.2,5.2,""],["Mehlomeletten mit Käse, zubereitet",196,10.0,18.2,9.0,""],["Mehlomeletten mit Nutella, zubereitet",259,7.1,29.0,12.4,""],["Mehlomeletten mit Schinken, zubereitet",157,9.8,17.3,5.2,""],["Mehlomeletten mit Speck, zubereitet",194,9.3,17.3,9.5,""],["Mehlomeletten mit Zimt und Zucker, zubereitet",178,7.1,24.5,5.5,""],["Mehlomeletten, zubereitet",166,7.5,20.4,5.8,""],["Melasse, Melassesirup",274,1.2,67.2,0,""],["Meringue",400,5.0,94.0,0.5,""],["Miesmuschel, roh",85,11.7,3.4,2.7,""],["Milch (Durchschnitt)",62,3.3,4.6,3.4,""],["Milchkaffee dunkel, ungezuckert",16,0.8,1.2,0.9,"Schale"],["Milchkaffee hell, ungezuckert",22,1.1,1.6,1.2,"Schale"],["Milchkaffee, ungezuckert",20,1.0,1.4,1.1,"Schale"],["Milchreis, zubereitet (mit teilentrahmter Milch)",132,5.4,19.5,3.5,""],["Milchreis, zubereitet (mit Vollmilch)",144,5.2,19.5,5.0,""],["Milchschokolade",537,6.5,56.9,31.1,""],["Milchschokolade mit Alkoholfüllung",488,5.4,59.1,23.0,""],["Milchschokolade mit Crèmefüllung (Gianduja, Nougat)",571,6.9,47.2,38.5,""],["Milchschokolade mit Mandel-Honig-Nougat",534,7.0,54.7,31.4,""],["Milchschokolade mit Nüssen",566,8.4,45.6,38.1,""],["Milchschokolade mit Weinbeeren, Nüssen und Mandeln",511,7.5,51.2,29.6,""],["Minestrone",53,2.0,7.0,1.8,""],["Minipic Würstchen",460,26.1,0.8,39.1,""],["Mirabelle, gedünstet, abgetropft (ohne Zugabe von Zucker)",65,0.8,13.8,0.2,""],["Mirabelle, roh",57,0.7,12.0,0.2,""],["Mit Hackfleisch gefüllte Oliven, frittiert",320,14.1,32.3,14.0,""],["Molke, süss",24,0.8,4.7,0.2,"Süssmolke"],["Morchel, gedünstet (ohne Zugabe von Fett und Salz)",31,2.1,0.6,0.4,""],["Morchel, roh",26,1.7,0.5,0.3,""],["Mortadella",305,15.7,0.8,26.6,""],["Mostbröckli",150,32.6,0.5,1.9,""],["Mozzarella",253,18.7,0.7,19.5,""],["Mürbeteig (mit Butter), süss, ungebacken",424,7.8,45.8,22.9,""],["Mürbeteig (mit pflanzlichem Fett), süss, ungebacken",419,7.8,45.8,22.4,""],["Mütschli",254,8.7,51.8,0.8,""],["Nasi Goreng, zubereitet",126,11.0,16.1,1.9,""],["Nektarine, roh",51,0.9,10.2,0.2,""],["Nussgipfel aus Blätterteig",416,6.6,35.6,26.9,""],["Nussgipfel aus Hefeteig",315,7.5,41.5,12.6,""],["Nüsslisalat, roh",23,2.0,2.0,0.4,"Feldsalat;Rapunzelsalat"],["Nussschnecke aus Hefeteig",442,12.0,54.4,18.7,"Hefeschnecke"],["Ofen-Frites, tiefgekühlt",127,1.8,18.2,4.9,"Ofen-Pommes"],["Olive, grün",126,1.3,0,12.5,""],["Olive, schwarz",150,0.9,3.0,14.0,""],["Olivenöl",809,0.0,0,89.9,""],["Orange, roh",44,1.0,8.6,0.2,"Apfelsine"],["Orangennektar",44,0.4,10.5,0,""],["Orangensaft",51,0.5,11.1,0.5,""],["Orangensaft, angereichert mit Vitamin C",55,0.5,12.0,0.5,""],["Palmöl - Palmfett",799,0.0,0,88.8,""],["Pancetta",467,19.5,0.4,43.0,""],["Panettone",354,6.4,56.5,10.7,""],["Paniermehl",370,14.2,71.8,1.9,"Semmelmehl"],["Pantli",538,21.1,0.9,50.0,""],["Paprika (Gewürz)",358,14.8,34.9,13.0,""],["Paranuss",692,16.6,3.2,66.5,""],["Pariserbrot",254,9.0,51.1,0.9,"Baguette;Parisette"],["Parmesan",374,36.0,0,25.6,"Parmiggiano"],["Passionsfrucht, roh",92,2.2,11.8,0.5,"Maracuja"],["Pâté de campagne",391,13.2,1.0,36.9,""],["Peperoni, grün, gedünstet (ohne Zugabe von Fett und Salz)",26,1.0,3.4,0.4,""],["Peperoni, grün, roh",20,0.8,2.6,0.3,""],["Peperoni, rot, gedünstet (ohne Zugabe von Fett und Salz)",42,1.2,6.8,0.5,""],["Peperoni, rot, roh",32,0.9,5.2,0.4,""],["Petersilie, roh",56,3.9,6.8,0.5,"Peterli"],["Pfefferminze, roh",49,3.8,5.3,0.7,""],["Pferd, Filet, gebraten (ohne Zusatz von Fett und Salz)",141,29.3,0,2.6,""],["Pferd, Filet, roh",103,21.4,0,1.9,""],["Pferderagout mit Sauce, zubereitet",94,12.7,3.1,3.3,"Voressen"],["Pfirsich, gezuckert (Konserve)",83,0.4,19.0,0.2,""],["Pfirsich, roh",48,0.5,10.0,0.2,""],["Pfirsich, ungezuckert (Konserve)",48,0.5,10.0,0.2,""],["Pflaume, gedünstet, abgetropft (ohne Zugabe von Zucker)",59,0.7,12.6,0.2,""],["Pflaume, getrocknet",204,2.5,39.8,0.3,"Dörrpflaume;Backpflaume"],["Pflaume, roh",48,0.6,10.2,0.2,""],["Pflaumenkuchen, gebacken (mit Blätterteig)",137,2.5,15.5,6.9,"Pflaumenwähe"],["Pflaumenkuchen, gebacken (mit Kuchenteig)",129,2.9,17.8,4.8,""],["Pilz (Durchschnitt), gedünstet (ohne Zugabe von Fett und Salz)",31,2.9,0.7,0.5,""],["Pilz (Durchschnitt), roh",25,2.4,0.6,0.4,""],["Pilzrisotto, gekocht",126,4.0,18.7,3.6,""],["Pilzsauce, gebunden",82,3.6,7.6,4.0,""],["Pilzsuppe",38,1.1,5.5,1.2,""],["Pinienkerne",594,31.6,13.9,44.9,""],["Pistazie",580,20.3,17.6,45.4,""],["Pizza al tonno, gebacken",227,12.2,26.5,7.7,"Pizza mit Thon"],["Pizza Calzone, gebacken",226,11.5,26.6,7.8,""],["Pizza Hawaii, gebacken",195,9.5,24.2,6.4,""],["Pizza Margherita, gebacken",238,9.9,29.9,8.4,""],["Pizza mit Gemüse, gebacken",124,5.6,17.4,3.1,""],["Pizza mit Mascarpone und Rucola, gebacken",240,9.6,27.4,9.9,""],["Pizza Prosciutto e Funghi, gebacken",205,10.6,24.0,7.0,"Pizza mit Schinken und Pilzen"],["Pizza Prosciutto, gebacken",219,10.6,28.7,6.5,"Pizza mit Schinken"],["Pizza Quattro Formaggi, gebacken",297,12.9,37.2,10.3,""],["Pizzateig (mit Olivenöl), ungebacken",229,7.0,41.2,3.6,""],["Plätzli (Durchschnitt aus Geflügel, Kalb, Rind, Schwein), gebraten (ohne Zusatz von Fett und Salz)",155,30.4,0.1,3.7,""],["Plätzli (Durchschnitt aus Rind, Kalb, Schwein, Geflügel), roh",114,22.2,0.1,2.7,""],["Polenta nera (aus Maisgriess und Buchweizenmehl), gekocht",103,4.6,12.9,3.4,""],["Pommes Chips",537,4.9,49.4,34.7,""],["Pommes Chips fettreduziert",467,5.9,59.4,21.9,""],["Pommes Frites (im Ofen gebacken), ungesalzen",230,3.3,33.1,8.9,"Ofen-Pommes"],["Pommes Frites (in HO Sonnenblumenöl fritiert), ungesalzen",285,3.2,32.5,15.3,""],["Popcorn",367,12.0,62.9,4.2,"Puffmais"],["Portwein, 18.5 vol%",152,0.2,12.0,0,"Porto"],["Poulet, Brust, mit Haut, roh (Frankreich)",126,24.0,0,3.3,""],["Poulet, Brust, mit Haut, roh (Schweiz)",152,23.3,0,6.5,""],["Poulet, Brust, ohne Haut, roh (Frankreich)",109,25.2,0,0.9,""],["Poulet, Brust, ohne Haut, roh (Schweiz)",107,24.6,0,1.0,""],["Poulet, Brust, Schnitzel oder Geschnetzeltes, gebraten (ohne Zusatz von Fett und Salz)",131,28.9,0.5,1.5,""],["Poulet, Brust, Schnitzel, roh",105,23.1,0.4,1.2,"Geschnetzeltes"],["Poulet, ganz, mit Haut, gebraten (ohne Zusatz von Fett und Salz)",224,25.1,0,13.7,""],["Poulet, ganz, mit Haut, roh",168,18.8,0,10.3,""],["Poulet, Schenkel, mit Haut, gebraten (ohne Zusatz von Fett und Salz)",218,23.9,0,13.6,""],["Poulet, Schenkel, mit Haut, roh",184,17.6,0,12.6,""],["Poulet, Schenkel, mit Haut, roh (Frankreich)",145,19.4,0,7.5,""],["Poulet, Schenkel, mit Haut, roh (Schweiz)",163,17.9,0,10.2,""],["Poulet, Schenkel, ohne Haut, roh (Frankreich)",121,20.6,0,4.3,""],["Poulet, Schenkel, ohne Haut, roh (Schweiz)",135,19.7,0,6.2,""],["Preiselbeere, roh",40,0.3,7.1,0.5,"Moosbeere"],["Prussien",438,4.7,53.8,22.4,"Palmiers"],["Pudding, Caramel",125,3.4,23.0,2.1,"Flan"],["Pudding, Schokolade",121,3.0,21.0,2.6,"Flan"],["Pudding, Vanille",101,2.8,18.0,2.0,"Flan"],["Quark, nature, halbfett",99,9.6,4.0,5.0,""],["Quark, nature, mager",62,10.8,4.2,0.2,""],["Quark, nature, Rahm",183,7.0,3.7,15.6,""],["Quarkblätterteig (mit Butter), ungebacken",401,7.1,28.9,28.3,""],["Quarkblätterteig (mit pflanzlichem Fett), ungebacken",396,7.1,28.9,27.7,""],["Quiche Lorraine, gebacken (mit Blätterteig)",305,8.5,11.5,24.9,""],["Quiche Lorraine, gebacken (mit Kuchenteig)",293,9.0,14.6,21.9,""],["Quitte, gekocht, abgetropft (ohne Zugabe von Zucker)",51,0.4,7.9,0.2,""],["Quitte, roh",41,0.3,6.3,0.2,""],["Raclettekäse",359,26.4,0,27.9,""],["Radieschen, roh",16,1.0,2.1,0.1,""],["Rahm (Durchschnitt)",252,2.4,3.4,25.4,""],["Rahmglace, Frucht",185,3.5,24.7,8.0,"Rahmeis"],["Rahmkaramellen",351,0.4,79.3,3.6,"Rahmbonbons"],["Rande, gedämpft (ohne Zugabe von Salz)",57,1.9,10.5,0.1,"Rote Beete"],["Rande, roh",46,1.5,8.4,0.1,"Rote Beete"],["Rapsöl",809,0.0,0,89.9,""],["Rapsöl HOLL (high oleic, low linolenic)",810,0.0,0,90.0,""],["Ratatouille, zubereitet",48,1.5,4.6,2.1,""],["Rauchsalami",513,21.4,0.9,47.0,""],["Reblochon",308,20.3,0,25.2,""],["Reh (Durchschnitt), roh",122,22.4,0,3.6,""],["Reh, Ragout, roh",105,22.0,0,1.9,"Rehpfeffer"],["Reh, Schnitzel, roh",105,22.5,0,1.7,""],["Reibkäse",396,32.3,0,29.4,""],["Reis parboiled, gekocht in Salzwasser (unjodiert)",119,2.4,26.6,0.2,""],["Reis parboiled, trocken",349,6.9,78.2,0.6,""],["Reis poliert, gekocht in Salzwasser (unjodiert)",115,2.2,25.9,0.2,""],["Reis poliert, trocken",348,6.6,78.3,0.6,""],["Reis unpoliert, gekocht in Salzwasser (unjodiert)",135,2.8,28.0,1.1,"Vollkornreis"],["Reis unpoliert, trocken",357,7.5,73.9,2.8,"Vollkornreis"],["Rettich, roh",18,0.6,2.6,0.3,""],["Rhabarber, roh",12,0.6,1.0,0.1,""],["Rhabarberkuchen, gebacken (mit Blätterteig)",113,2.5,9.4,6.8,"Rhabarberwähe"],["Rhabarberkuchen, gebacken (mit Kuchenteig)",105,2.9,11.7,4.7,"Rhabarberwähe"],["Riesenkürbis, gedämpft (ohne Zugabe von Salz)",23,0.6,4.5,0.1,""],["Riesenkürbis, roh",23,0.6,4.5,0.1,""],["Rind, Brust, gekocht (ohne Zugabe von Fett und Salz)",313,31.5,0,20.8,""],["Rind, Brust, roh",188,18.9,0,12.5,""],["Rind, Eckstück, roh",111,22.6,0,2.3,"Plätzli"],["Rind, Entrecôte, medium\" gebraten (ohne Zusatz von Fett und Salz)\"",183,31.8,0,6.2,""],["Rind, Entrecôte, roh",138,22.3,0,5.4,""],["Rind, Entrecôte, roh (Schweiz)",133,23.2,0,4.5,""],["Rind, Entrecôte, roh (USA)",210,21.7,0,13.7,""],["Rind, Filet, medium\" gebraten (ohne Zustatz von Fett und Salz)\"",141,29.2,0,2.7,""],["Rind, Filet, roh",106,21.9,0,2.0,""],["Rind, Gehacktes, gebraten (ohne Zusatz von Fett und Salz)",244,34.3,0,11.9,"Hackfleisch"],["Rind, Gehacktes, roh",154,21.6,0,7.5,"Hackfleisch"],["Rind, Geschnetzeltes, roh",102,22.2,0,1.5,""],["Rind, Hals, roh",149,19.3,0,8.0,"Voressen;Gulasch"],["Rind, Hohrücken, roh (Schweiz)",165,21.1,0,9.0,""],["Rind, Hohrücken, roh (USA)",218,19.3,0,15.7,""],["Rind, Leber, roh",138,20.5,5.3,3.9,""],["Rind, Runder Mocken, roh",106,22.4,0,1.8,"Saftplätzli"],["Rind, Schulter, Braten medium\", im Ofen gebraten (ohne Zugabe von Fett und Salz)\"",162,30.0,0,4.7,""],["Rind, Schulter, Braten rare\", im Ofen gebraten (ohne Zugabe von Fett und Salz)\"",150,27.7,0,4.4,""],["Rind, Schulter, Braten well done\", im Ofen gebraten (ohne Zugabe von Fett und Salz)\"",189,34.8,0,5.5,""],["Rind, Schulter, Braten, roh",117,21.6,0,3.4,""],["Rind, Siedfleisch, durchzogen,  roh",227,19.5,0,16.6,""],["Rind, Siedfleisch, durchzogen, gekocht (ohne Zusatz von Fett und Salz)",289,32.5,0,17.7,""],["Rind, Siedfleisch, mager, gekocht (ohne Zusatz von Fett and Salz)",221,34.5,0,9.2,""],["Rind, Siedfleisch, mager, roh",132,20.7,0,5.5,""],["Rind, Voressen, roh",96,21.2,0,1.3,"Ragout"],["Rind, Zunge, roh",196,16.0,3.7,13.0,""],["Rindfleisch (Durchschnitt exkl. Innereien, Rippensteak), roh",134,21.4,0,5.4,""],["Rindsragout mit Sauce, zubereitet",91,12.6,3.1,3.0,"Voressen"],["Rippli (Nierstück), roh",154,21.7,0.5,7.3,""],["Risotto ohne Käse, gekocht",123,2.2,25.1,1.4,""],["Ristretto crème, ungezuckert",47,0.8,1.3,4.3,""],["Riz Casimir mit Kalbfleisch, zubereitet",124,6.9,16.0,3.3,""],["Riz Casimir mit Poulet, zubereitet",126,7.5,16.0,3.3,""],["Roggenbrot mit Sauerteig",210,5.2,41.8,1.0,""],["Roggenmehl, halbweiss, Typ 815",337,7.1,71.8,1.2,""],["Roggenmehl, Ruch, Typ 1050",333,7.5,68.6,1.5,""],["Roggenmehl, Vollkorn, Schrot, Typ 1800",325,8.5,63.3,1.7,""],["Roggenschrotbrot",228,6.2,44.3,1.2,""],["Rohessspeck",400,22.1,0.6,34.3,"Bauernspeck;Bauernspeck, roh, geräuchert"],["Rohpökelwaren (Durchschnitt)",304,28.1,0.4,21.1,""],["Rohschinken",229,31.0,0.3,11.5,""],["Rohwürste mit abgebrochener Reifung (Durchschnitt)",369,15.6,0.6,33.8,""],["Rohwürste/Dauerwürste (Durchschnitt)",454,22.0,0.3,40.5,""],["Rollgerste",344,9.6,71.0,1.4,"Gerstengraupen"],["Rollmops",270,12.0,19.6,15.9,"Hering, sauer"],["Rollschinken",181,20.3,1.2,10.6,""],["Rollschinken, gekocht (ohne Zusatz von Fett und Salz)",227,25.4,1.5,13.3,""],["Roquefort",361,18.7,0.2,31.7,""],["Rosenkohl, gedämpft (ohne Zugabe von Salz)",42,3.8,3.4,0.5,""],["Rosenkohl, roh",43,4.0,3.5,0.5,""],["Rosine, getrocknet",298,2.5,68.0,0.6,"Weinbeere;Sultanine"],["Rosmarin, roh",62,0.8,7.7,2.5,""],["Rösti, Fertigprodukt",117,2.0,18.6,3.6,""],["Rotkohl, gedünstet (ohne Zugabe von Fett und Salz)",28,1.3,3.7,0.3,"Rotkraut;Blaukraut"],["Rotkohl, roh",30,1.4,4.0,0.3,"Rotkraut;Blaukraut"],["Ruchbrot",234,9.5,44.3,1.2,""],["Rucola, roh",28,2.6,2.1,0.7,"Rauke"],["Rüeblitorte",291,9.8,24.7,16.0,"Rüeblikuchen;Rüeblicake"],["Rührei mit Champignons, zubereitet",128,9.4,1.5,9.3,""],["Rührei mit Käse, zubereitet",159,11.6,1.3,11.9,""],["Rührei mit Kräutern, zubereitet",143,10.3,1.8,10.4,""],["Rührei mit Schinken, zubereitet",146,12.7,1.3,10.0,""],["Rührei, zubereitet",149,10.8,1.3,11.2,""],["Rührteigcake Gleichschwer\"\"",431,6.7,44.8,24.8,""],["Russischer Salat, zubereitet",198,2.5,9.9,15.9,""],["Sablé, Butter",475,5.9,53.1,26.2,""],["Salametti",342,14.8,0.3,31.3,""],["Salami (Billiglinie)",422,22.0,0,37.1,""],["Salami Typ Nostrano",367,24.1,0,30.1,""],["Salatsauce französisch (mit Rapsöl)",446,0.7,3.0,46.9,""],["Salatsauce italienisch (mit Olivenöl)",472,0.3,1.4,50.6,""],["Salbei, roh",58,1.7,6.9,2.0,""],["Salsiz",415,25.2,0,34.9,""],["Saltimbocca, gebraten in HOLL-Rapsöl",230,30.2,0.1,12.1,""],["Samen, Kerne, Nüsse (Durchschnitt), ungesalzen",600,20.3,11.2,50.6,""],["Samosa frittiert",342,6.3,31.6,20.4,""],["Samosa gebacken",310,6.7,33.5,15.8,""],["Sandwich (Baguette) mit Aufschnitt",152,5.0,17.3,6.6,""],["Sandwich (Baguette) mit Fleischkäse",220,7.9,25.1,9.4,""],["Sandwich (Baguette) mit Halbhartkäse",179,6.8,20.0,7.6,""],["Sandwich (Baguette) mit Mozzarella",163,5.8,20.1,6.2,""],["Sandwich (Baguette) mit Rohschinken",164,8.8,18.7,5.7,""],["Sandwich (Baguette) mit Salami",157,5.8,18.3,6.4,""],["Sandwich (Baguette) mit Schinken",131,6.3,17.3,3.7,""],["Sandwich (Baguette) mit Trockenfleisch",141,7.2,18.4,3.9,""],["Sandwich (Baguette) mit Weichkäse",182,6.3,21.3,7.6,""],["Sandwich (Ruchbrot) mit Aufschnitt",143,5.3,15.2,6.4,""],["Sandwich (Ruchbrot) mit Fleischkäse",210,8.1,21.9,9.5,""],["Sandwich (Ruchbrot) mit Halbhartkäse",172,7.0,17.5,7.7,""],["Sandwich (Ruchbrot) mit Mozzarella",155,6.0,17.6,6.3,""],["Sandwich (Ruchbrot) mit Rohschinken",157,9.0,16.3,5.8,""],["Sandwich (Ruchbrot) mit Salami",151,5.9,16.2,6.5,""],["Sandwich (Ruchbrot) mit Schinken",125,6.4,15.3,3.8,""],["Sandwich (Ruchbrot) mit Trockenfleisch",135,7.4,16.2,4.0,""],["Sandwich (Ruchbrot) mit Weichkäse",174,6.5,18.6,7.7,""],["Sardelle im Öl, abgetropft",182,26.4,0.2,8.4,""],["Sardellenpaste",272,19.8,0.2,21.3,""],["Sardine im Öl, abgetropft",215,23.0,0,13.7,""],["Sardine, roh",163,20.4,0,9.0,""],["Saucisse aux choux",362,15.9,1.5,32.3,""],["Saucisson",467,16.7,0.5,44.2,""],["Saucisson vaudois",358,16.5,0.2,32.3,""],["Saucisson, gekocht (ohne Zusatz von Fett und Salz)",550,20.9,0.6,51.5,""],["Sauerkraut, in Essig eingelegt",19,1.3,1.7,0.3,"Sauerkohl"],["Sauerrahm",335,2.3,2.8,35.0,"Crème fraîche"],["Saurer Halbrahm",174,3.0,3.2,16.6,""],["Sbrinz",417,28.6,0,33.2,""],["Scampi (Kaisergranat), roh",93,19.6,0.8,1.3,""],["Schafmilch, roh",105,5.6,4.7,7.1,""],["Schaumwein",70,0.2,1.5,0,"Sekt;Prosecco;Champagner"],["Schmelzkäse, Scheibe, Rahm",324,13.4,0,30.0,""],["Schmelzkäse, Scheibe, viertelfett",158,20.1,0,8.6,""],["Schmelzkäse, Scheibe, vollfett",305,20.0,0,25.0,""],["Schmelzkäse, streichfähig, Rahm",309,11.2,0,29.4,""],["Schmelzkäse, streichfähig, viertelfett",161,19.4,0,9.3,""],["Schmelzkäse, streichfähig, vollfett",255,16.0,0,21.2,""],["Schnittlauch, roh",30,3.0,1.9,0.6,""],["Schnitzelbrot mit Cocktailsauce",266,15.1,25.1,11.4,"Plätzlibrot"],["Schnitzelbrot mit Tartarsauce",246,14.4,23.2,10.3,"Plätzlibrot"],["Schokolade, dunkel (bitter)",535,5.2,53.4,31.8,""],["Schokolade, weiss",568,6.8,55.8,35.2,""],["Schokoladencrème",122,3.6,20.0,3.0,""],["Schokoladengugelhopf",379,6.2,46.3,18.4,""],["Schokoladenpulver",402,6.3,71.3,7.8,""],["Scholle, roh",86,17.1,0,1.9,"Goldbutt"],["Schützenwurst",306,9.9,0.2,29.5,""],["Schwarzwälder Kirschtorte",248,3.9,21.4,16.1,""],["Schwarzwurzel, gedämpft (ohne Zugabe von Salz)",60,1.6,2.3,0.4,""],["Schwarzwurzel, roh",54,1.4,2.1,0.4,""],["Schwein, Brustspitz, roh",239,17.9,0,18.6,""],["Schwein, Eckstück, Plätzli, gebraten (ohne Zusatz von Fett und Salz)",177,34.8,0,4.2,""],["Schwein, Eckstück, roh",115,22.6,0,2.7,"Plätzli"],["Schwein, Filet, gebraten (ohne Zusatz von Fett und Salz)",168,30.8,0,5.0,""],["Schwein, Filet, roh",121,22.2,0,3.6,""],["Schwein, Gehacktes, roh",158,20.5,0,8.5,"Hackfleisch"],["Schwein, Geschnetzeltes, gebraten (ohne Zusatz von Fett und Salz)",196,31.3,0,7.9,""],["Schwein, Geschnetzeltes, roh",134,21.3,0,5.4,""],["Schwein, Hals, Steak, gebraten (ohne Zusatz von Fett und Salz)",298,27.8,0,20.7,""],["Schwein, Hals, Steak, roh",202,18.9,0,14.1,""],["Schwein, Haxe, geschmort (ohne zusatz von Fett und Salz)",267,39.4,1.1,11.7,""],["Schwein, Haxe, roh",174,25.6,0.7,7.6,""],["Schwein, Kotelett, gebraten (ohne Zusatz von Fett und Salz)",276,32.9,0,16.0,""],["Schwein, Kotelett, roh",179,21.4,0,10.4,""],["Schwein, Leber, roh",130,20.7,0.9,4.9,""],["Schwein, Nierstück, roh",138,22.9,0,5.1,""],["Schwein, Runder Mocken, roh",126,20.6,0,4.9,"Plätzli"],["Schwein, Schulter, Braten medium\", im Ofen gebraten (ohne Zugabe von Fett und Salz)\"",229,31.1,0,11.6,""],["Schwein, Schulter, Braten well done\", im Ofen gebraten (ohne Zugabe von Fett und Salz)\"",292,39.7,0,14.8,""],["Schwein, Schulter, Braten, roh",181,24.6,0,9.2,""],["Schwein, Voressen, roh",135,20.9,0,5.7,"Ragout"],["Schweinefleisch (Durchschnitt exkl. Innereien, Kotelett, Haxe), roh",160,21.4,0,8.3,""],["Schweineschmalz",891,0.0,0,99.0,""],["Schweinsbratwurst",236,16.2,0.5,18.8,""],["Schweinspiccata, zubereitet",233,23.7,5.5,12.8,""],["Schweinsragout mit Sauce, zubereitet",113,12.4,3.1,5.5,""],["Schweinswurst",268,16.2,0.5,22.4,""],["Schweizer Salami, Schweine- und Rindfleisch",487,22.0,1.3,43.7,""],["Seehecht, roh",71,17.0,0,0.3,""],["Seelachs, roh",80,19.3,0,0.3,"Kohlfisch;Köhler;Pollack"],["Seezunge, roh",85,18.7,0,1.1,""],["Sellerie-Piccata, zubereitet",162,5.3,6.8,11.6,""],["Selleriescheiben, paniert, zubereitet",138,5.0,13.9,5.7,""],["Semmeli",262,8.9,53.4,0.8,""],["Sesamsamen ungeschält",589,17.7,11.7,49.8,""],["Sherry, 18.5 vol%",118,0.1,3.6,0,"Jerez"],["Siedfleischsalat, zubereitet",227,16.5,1.5,17.0,""],["Silberzwiebel, in Essig eingelegt",28,0.9,4.9,0.2,""],["Sirup unverdünnt",371,0.1,91.8,0.2,""],["Sirup zubereitet (verdünnt im Verhältnis 1:5.5)",54,0.0,13.5,0,""],["Soja Drink, nature",40,3.9,0.8,2.2,"Sojamilch"],["Sojabohne, gekocht (ohne Zugabe von Fett und Salz)",173,14.0,11.7,7.0,""],["Sojabohne, getrocknet",387,38.2,6.3,18.3,""],["Sojamehl, entfettet",249,45.2,0.6,1.2,""],["Sojamehl, vollfett",398,40.8,3.1,20.6,""],["Sojaöl",809,0.0,0,89.9,""],["Sojasprossen, roh",55,5.5,4.7,1.0,"Sojakeime"],["Sonnenblumenkerne",626,21.3,12.0,53.0,""],["Sonnenblumenöl",809,0.0,0,89.9,""],["Sonnenblumenöl HO (high oleic), raffiniert",810,0.0,0,90.0,""],["Sorbet, Frucht",136,0.2,32.1,0,""],["Spargel, gedämpft (ohne Zugabe von Salz)",27,2.2,3.3,0.2,""],["Spargel, roh",27,2.2,3.3,0.2,""],["Spinat, gedämpft (ohne Zugabe von Salz)",30,3.6,1.0,0.5,""],["Spinat, roh",23,2.7,0.8,0.4,""],["Spinatkuchen, gebacken (mit Blätterteig)",178,5.8,10.2,12.2,"Spinatwähe"],["Spinatkuchen, gebacken (mit Kuchenteig)",169,6.1,12.3,10.1,"Spinatwähe"],["Spirituosen 40 vol% (z.B. Brandy, Gin)",221,0.0,0,0,""],["Spitzbube (Mürbeteiggebäck mit Konfitüre)",499,5.8,60.3,25.6,""],["St. Galler Bürli (halbweiss)",231,9.1,44.6,1.0,""],["St. Galler Schüblig",292,13.6,0.2,26.3,""],["St. Paulin",279,18.0,0,23.0,""],["Stachelbeere, roh",34,0.6,6.2,0.1,""],["Stangensellerie, gedämpft (ohne Zugabe von Salz)",16,1.0,1.6,0.1,""],["Stangensellerie, roh",14,0.9,1.5,0.1,""],["Steinpilz, gedünstet (ohne Zugabe von Fett und Salz)",39,4.4,0.6,0.5,""],["Steinpilz, roh",32,3.6,0.5,0.4,""],["Surimi",81,12.6,6.1,0.7,""],["Taboulé, zubereitet (mit Bulgur)",114,2.4,12.1,5.5,""],["Taboulé, zubereitet (mit Couscous)",134,3.0,15.9,6.1,""],["Tartarsauce, selbst zubereitet mit Rapsöl-Mayonnaise",383,3.6,1.9,40.0,""],["Tee, ungezuckert",0,0.0,0,0,""],["Teigwaren mit Ei, gekocht im Salzwasser (unjodiert)",137,5.0,26.3,1.0,"Eierteigwaren"],["Teigwaren mit Ei, trocken",365,13.3,69.9,2.8,"Eierteigwaren"],["Teigwaren ohne Ei, gekocht im Salzwasser (unjodiert)",165,5.8,32.8,0.6,""],["Teigwaren ohne Ei, trocken",353,12.5,70.5,1.2,""],["Teigwaren ohne Ei, Vollkorn, gekocht im Salzwasser (unjodiert)",159,6.2,28.2,1.2,""],["Teigwaren ohne Ei, Vollkorn, trocken",342,13.4,60.6,2.5,""],["Teigwarenauflauf mit Schinken, zubereitet",167,10.4,15.1,7.0,""],["Teigwarensalat mit französischer Sauce",131,5.5,13.3,5.8,""],["Teigwarensalat mit italienischer Sauce",133,5.4,13.3,6.1,""],["Teilentrahmte Milch, pasteurisiert",57,3.2,4.7,2.8,""],["Teilentrahmte Milch, UHT",57,3.4,4.6,2.8,""],["Tessinerbrot",323,10.3,57.2,5.2,""],["Tête de Moine",419,24.7,0,35.5,""],["Thon im Öl, abgetropft",186,27.6,0,8.4,""],["Thon im Wasser, abgetropft",117,25.6,0,1.6,""],["Thonsalat an Essig-Öl-Sauce (aus Thon im Wasser)",110,9.0,6.8,4.8,""],["Thunfisch, roh",149,23.4,0,6.2,""],["Thymian, roh",52,1.5,7.4,1.2,""],["Tilsiter, pasteurisiert, vollfett",353,24.6,0,28.0,""],["Tilsiter, Rohmilch, vollfett",378,26.1,0,30.2,""],["Tirolercake",411,8.1,41.1,23.2,""],["Toastbrot mit Butter",316,8.9,45.7,10.4,""],["Toastbrot mit Pflanzenölen",332,8.9,45.6,12.2,""],["Tofu",81,8.1,0.7,4.8,""],["Tomate, gedünstet (ohne Zugabe von Fett und Salz)",28,1.0,4.2,0.4,""],["Tomate, geschält (Konserve)",19,0.9,3.0,0.2,"Pelati"],["Tomate, roh",21,0.8,3.2,0.3,""],["Tomatenkuchen, gebacken (mit Blätterteig)",156,3.5,10.0,11.1,"Tomatenwähe"],["Tomatenkuchen, gebacken (mit Kuchenteig)",146,3.9,12.3,8.8,"Tomatenwähe"],["Tomatenpüree",77,4.5,12.9,0.2,"Tomatenmark"],["Tomatensaft",15,0.8,3.0,0,""],["Tomatensauce",69,1.8,9.7,2.1,""],["Tomatensuppe",42,1.0,6.6,1.1,""],["Tomme",286,20.7,0,22.5,""],["Traube, roh",69,0.7,15.2,0.3,"Weintraube"],["Traubenkernöl",809,0.0,0,89.9,""],["Traubensaft",62,0.2,15.0,0.1,""],["Traubenzucker",399,0.0,99.8,0,"Glukose;Dextrose"],["Trinkwasser (Mittelwert Schweiz)",0,0.0,0,0,""],["Trockenfleisch",190,39.3,0.4,3.5,"Hobelfleisch;Bündnerfleisch"],["Truthahn, Brust, Schnitzel oder Geschnetzeltes, grebraten (ohne Zusatz von Fett und Salz)",146,32.4,0,1.8,""],["Truthahn, Brust, Schnitzel oder Geschnetzeltes, roh",108,24.0,0,1.3,""],["Vacherin Mont d'Or",280,17.6,0,23.2,""],["Vanillecrème, gekocht",140,3.2,23.8,3.6,""],["Vinaigrette (mit Rapsöl)",259,4.4,2.3,25.2,""],["Vitello tonnato mit Garnitur",179,19.2,0.8,11.0,""],["Vitello tonnato ohne Garnitur",208,23.2,0.5,12.6,""],["Vollkornreiswaffel",392,8.2,81.5,2.8,""],["Vollmilch, pasteurisiert",68,3.3,4.7,4.0,""],["Vollmilch, UHT",68,3.3,4.6,4.1,""],["Vollmilchpulver",480,24.7,35.1,26.2,""],["Vollrahm, pasteurisiert",334,2.0,3.1,34.8,""],["Vollrahm, UHT",334,2.0,3.1,34.9,""],["Vorderschinken",106,18.6,0.4,3.3,""],["Vorzugsbutter",746,0.7,0.7,82.3,""],["Walliser Roggenbrot",220,6.3,42.7,1.1,""],["Wasabi Paste",308,2.9,49.6,10.6,""],["Wassereis",88,0.0,22.0,0,"Wasserglacé"],["Wassermelone, roh",30,0.5,6.3,0.3,""],["Weichkaramellen, Bonbons",448,2.1,71.1,17.2,""],["Weichkäse (Durchschnitt ohne fettreduzierte Varianten)",324,19.3,0,27.4,""],["Weichkäse, Doppelrahm",363,12.0,0,35.0,""],["Wein rot, 12 vol%",69,0.2,0.3,0,"Rotwein"],["Wein rot, 13.5 vol%",76,0.0,0.2,0,"Rotwein"],["Wein rot, 9 vol%",54,0.2,0.2,0,"Rotwein"],["Wein weiss, 11 vol%",70,0.1,2.0,0,"Weisswein"],["Wein weiss, 12.5 vol%",71,0.2,0.1,0,"Weisswein"],["Wein weiss, gespritzt, sauer",35,0.1,0,0,""],["Wein weiss, gespritzt, süss",55,0.1,4.8,0,""],["Weissbrot",242,8.5,48.9,0.8,""],["Weisskohl, gedämpft (ohne Zugabe von Salz)",30,1.4,4.2,0.2,""],["Weisskohl, gedünstet (ohne Zugabe von Fett und Salz)",32,1.5,4.5,0.2,""],["Weisskohl, roh",30,1.4,4.2,0.2,""],["Weisswurst",202,9.8,0.9,17.7,""],["Weizen (Weichweizen), ganzes Korn",325,10.9,59.6,1.8,""],["Weizenflocken, Vollkorn",329,11.7,61.0,2.0,""],["Weizenkeime",355,25.0,33.3,10.0,""],["Weizenkeimöl",809,0.0,0,89.9,""],["Weizenkleie",262,14.9,17.7,4.6,"Speisekleie"],["Weizenmehl (Backmehl), Typ 550",344,12.0,69.5,1.3,""],["Weizenmehl, halbweiss, Typ 720",340,13.0,66.2,1.5,""],["Weizenmehl, Ruch, Typ 1100",339,13.5,64.6,1.7,""],["Weizenmehl, Vollkorn, Typ 1700",338,13.5,61.0,2.0,""],["Weizenmehl, weiss, Typ 400",346,11.5,71.0,1.1,""],["Weizenotto, gekocht",171,5.1,27.7,3.0,""],["Weizenstärke",348,0.4,85.8,0.1,""],["Weizenvollkornbrot",213,8.6,38.3,1.3,"Grahambrot"],["Wermut, 15 vol%",139,0.1,13.5,0,"Wermutwein;Wermuth;Vermouth"],["Wienerli",242,13.9,0.6,20.4,""],["Wienerli, gekocht",235,13.5,0.6,19.8,""],["Wildfleisch (Durchschnitt), gekocht (ohne Zusatz von Fett und Salz)",158,28.9,0,4.7,""],["Wildfleisch (Durchschnitt), roh",115,21.1,0,3.4,""],["Wildfleischterrine",286,17.3,1.8,23.0,""],["Wildschwein (Durchschnitt), roh",109,19.5,0,3.4,""],["Wirz, gedämpft (ohne Zugabe von Salz)",31,2.8,2.9,0.3,"Wirsingkohl"],["Wirz, roh",31,2.8,2.9,0.3,"Wirsingkohl"],["Wurst-Käse-Salat, zubereitet",264,13.9,0.8,22.6,""],["Wurstsalat, zubereitet",226,7.1,1.6,21.0,""],["Wurzel- und Knollengemüse (Durchschnitt), gedämpft (ohne Zugabe von Salz)",40,1.1,6.6,0.3,""],["Wurzel- und Knollengemüse (Durchschnitt), gedünstet (ohne Zugabe von Fett und Salz)",35,1.0,5.8,0.3,""],["Wurzel- und Knollengemüse (Durchschnitt), gekocht (ohne Zugabe von Fett und Salz)",38,1.0,6.3,0.3,""],["Wurzel- und Knollengemüse (Durchschnitt), roh",36,1.0,6.0,0.3,""],["Zampone",361,19.1,0,31.6,"Gefüllter Schweinsfuss"],["Ziege (Durchschnitt), roh",149,19.5,0,7.9,""],["Ziegenmilch",57,2.8,4.2,3.2,""],["Ziger weiss",123,11.1,3.3,7.2,""],["Zimtstern",481,11.9,49.0,24.9,""],["Zitrone, roh",22,0.8,2.9,0.4,""],["Zitronensaft",30,0.4,6.1,0.3,""],["Zitrusfrüchte (Durchschnitt), roh",41,0.8,8.3,0.2,""],["Zucchetti-Piccata, zubereitet",151,5.4,6.4,11.3,""],["Zucchetti, gedünstet (ohne Zugabe von Fett und Salz)",25,2.4,2.6,0.3,"Zucchini"],["Zucchetti, roh",19,1.8,2.0,0.2,"Zucchini"],["Zucchettischeiben, paniert, zubereitet",128,5.2,13.4,5.6,""],["Zucker, braun",390,0.0,97.6,0,""],["Zucker, weiss",400,0.0,100.0,0,"Kristallzucker;Saccharose"],["Zuckerhutsalat, roh",16,1.2,1.5,0.2,""],["Zuckermais (Konserve)",100,3.0,18.2,1.2,""],["Zuckermais (Konserve), aufgewärmt (ohne Zugabe von Salz)",107,3.2,19.4,1.3,""],["Zuger Kirschtorte",335,4.8,34.6,18.7,""],["Zunge (Durchschnitt aus Kalb und Rind), roh",188,16.6,2.8,12.3,""],["Zwetschge, gedünstet, abgetropft (ohne Zugabe von Zucker)",53,0.7,10.9,0.1,""],["Zwetschge, roh",43,0.6,8.8,0.1,""],["Zwetschgenkuchen, gebacken (mit Blätterteig)",133,2.5,14.6,6.8,"Zwetschgenwähe"],["Zwetschgenkuchen, gebacken (mit Kuchenteig)",125,2.9,16.8,4.7,"Zwetschgenwähe"],["Zwieback",428,14.7,69.6,9.5,""],["Zwieback, Vollkorn",412,17.7,61.2,9.0,""],["Zwiebel, gedünstet (ohne Zugabe von Fett und Salz)",46,1.6,8.4,0.2,""],["Zwiebel, geröstet (ohne Zugabe von Fett und Salz)",92,3.1,16.7,0.5,""],["Zwiebel, roh",39,1.3,7.0,0.2,""],["Zwiebelkuchen, gebacken (mit Blätterteig)",178,4.6,13.3,11.5,"Zwiebelwähe"],["Zwiebelkuchen, gebacken (mit Kuchenteig)",171,5.0,15.3,9.6,"Zwiebelwähe"]];
+const BASE = BASE_RAW.map((r,i)=>prepFood({id:"b"+i,name:r[0],kcal:r[1],p:r[2],c:r[3],f:r[4],portionLabel:r[5],portionG:r[6],alias:r[7],src:"base"}));
+const BLV = BLV_RAW.map((r,i)=>prepFood({id:"v"+i,name:r[0],kcal:r[1],p:r[2],c:r[3],f:r[4],portionLabel:"Portion",portionG:null,alias:(r[5]||"").replace(/;/g," "),src:"blv"}));
+
+/* ---------- Hilfen ---------- */
+const $ = s => document.querySelector(s);
+const nf0 = new Intl.NumberFormat("de-CH",{maximumFractionDigits:0});
+const nf1 = new Intl.NumberFormat("de-CH",{maximumFractionDigits:1});
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ymd = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const parseYmd = s => { const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+const addDays = (s,n) => { const d=parseYmd(s); d.setDate(d.getDate()+n); return ymd(d); };
+const today = () => ymd(new Date());
+const r1 = x => Math.round(x*10)/10;
+const MEALS = [["fruehstueck","Frühstück"],["mittag","Mittagessen"],["abend","Abendessen"],["snack","Snacks"]];
+const DEFAULT_NAMES = {p1:"Mein Profil"};
+const ACT = {1.2:"Wenig Bewegung (Bürojob)",1.375:"Leicht aktiv (1–2× Training)",1.55:"Aktiv (3–4× Training)",1.725:"Sehr aktiv (5–6× Training)"};
+const GOALS = {aufbau:"Muskelaufbau",halten:"Gewicht halten, Körper formen",reduktion:"Fett reduzieren"};
+
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2600); }
+function errText(e){
+  const c=e&&e.code;
+  if(c==="quota_exceeded") return "Speicher ist voll. Neue Einträge können nicht mehr angelegt werden.";
+  if(c==="invalid_argument") return "Du hast hier nur Leserechte.";
+  if(c==="revoked") return "Der Zugriff auf die Daten wurde entzogen.";
+  return "Speichern fehlgeschlagen. Bitte nochmals versuchen.";
+}
+function lsGet(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+
+/* ---------- Konfiguration: hier die Werte aus Supabase eintragen ---------- */
+const CLOUD = {
+  url: "DEINE_SUPABASE_URL",            // z. B. https://abcdefgh.supabase.co
+  key: "DEIN_PUBLISHABLE_KEY"           // Project Settings > API Keys > Publishable key
+};
+const cloudReady = () => !!(window.supabase && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(CLOUD.url) && CLOUD.key && !CLOUD.key.startsWith("DEIN"));
+let sb = null;
+
+/* ---------- Speicher (Supabase, sonst lokal) ---------- */
+const Store = (() => {
+  let db = null, mode = "loading";
+  const mem = {}, subs = {}, chains = {};
+  const lget = p => (p in mem) ? mem[p] : lsGet("typ:"+p);
+  const clone = o => o==null ? null : JSON.parse(JSON.stringify(o));
+  return {
+    async init(){
+      if(S.uid && sb){ mode = "cloud"; return mode; }
+      try{ if(window.claude && typeof window.claude.use==="function") db = await window.claude.use("db"); }catch(e){ db=null; }
+      mode = db ? "db" : "local"; return mode;
+    },
+    get mode(){ return mode; },
+    sub(path, cb){
+      if(mode==="cloud"){
+        (subs[path] ||= []).push(cb);
+        if(path in mem) cb(clone(mem[path]));
+        else Store.get(path).then(d => { if((subs[path]||[]).includes(cb)) cb(d); });
+        return () => { subs[path] = (subs[path]||[]).filter(x=>x!==cb); };
+      }
+      if(db){
+        return db.doc(path).onSnapshot(s => cb(s.exists ? clone(s.data()) : null), e => { if(e && e.code==="revoked") toast(errText(e)); });
+      }
+      (subs[path] ||= []).push(cb); cb(clone(lget(path)));
+      return () => { subs[path] = (subs[path]||[]).filter(x=>x!==cb); };
+    },
+    async getMany(paths){
+      if(mode==="cloud"){
+        const {data, error} = await sb.from("docs").select("path,data").in("path", paths);
+        if(error){ toast("Daten konnten nicht geladen werden. Prüfe die Internetverbindung."); return paths.map(p => clone(mem[p] ?? null)); }
+        const m = {}; (data||[]).forEach(r => m[r.path] = r.data);
+        paths.forEach(p => { if(!(p in mem) || (p in m)) mem[p] = m[p] ?? null; });
+        return paths.map(p => clone(m[p] ?? null));
+      }
+      return Promise.all(paths.map(p => Store.get(p)));
+    },
+    async get(path){
+      if(mode==="cloud"){
+        const {data, error} = await sb.from("docs").select("data").eq("path", path).maybeSingle();
+        if(error){ toast("Daten konnten nicht geladen werden. Prüfe die Internetverbindung."); return clone(mem[path] ?? null); }
+        mem[path] = data ? data.data : null; return clone(mem[path]);
+      }
+      if(db){ try{ const s = await db.doc(path).get(); return s.exists ? clone(s.data()) : null; }catch(e){ return null; } }
+      return clone(lget(path));
+    },
+    set(path, data){
+      const body = clone(data);
+      if(mode==="cloud"){
+        mem[path] = body; (subs[path]||[]).forEach(cb=>cb(clone(body)));
+        const run = async () => { const {error} = await sb.from("docs").upsert({user_id:S.uid, path, data:body, updated_at:new Date().toISOString()}); if(error) throw error; };
+        chains[path] = (chains[path]||Promise.resolve()).catch(()=>{}).then(run);
+        return chains[path].then(()=>true).catch(()=>{ toast("Speichern fehlgeschlagen. Prüfe die Internetverbindung."); return false; });
+      }
+      if(!db){ mem[path]=body; lsSet("typ:"+path, body); (subs[path]||[]).forEach(cb=>cb(clone(body))); return Promise.resolve(true); }
+      const run = async () => {
+        try{ await db.doc(path).set(body); }
+        catch(e){
+          if(e && e.code==="unavailable"){ await new Promise(r=>setTimeout(r,400+Math.random()*700)); await db.doc(path).set(body); }
+          else throw e;
+        }
+      };
+      chains[path] = (chains[path]||Promise.resolve()).catch(()=>{}).then(run);
+      return chains[path].then(()=>true).catch(e=>{ toast(errText(e)); return false; });
+    }
+  };
+})();
+
+/* ---------- Zustand ---------- */
+const S = {
+  active: "p1",
+  date: today(),
+  tab: "heute",
+  people: {p1:null, p2:null},
+  weights: {p1:{}, p2:{}},
+  custom: [],
+  day: null, unsubDay: null
+};
+const dayPath = (pid=S.active, date=S.date) => "days/"+pid+"_"+date;
+const person = (pid=S.active) => S.people[pid] || {};
+const pname = pid => (S.people[pid] && S.people[pid].name) || DEFAULT_NAMES[pid];
+
+function latestWeight(pid){
+  const e = S.weights[pid]||{}; const ks = Object.keys(e).sort();
+  return ks.length ? e[ks[ks.length-1]] : null;
+}
+function targets(pid=S.active){
+  const p = person(pid);
+  const w = latestWeight(pid) || p.weight;
+  if(!w || !p.height || !p.age) return null;
+  const bmr = 10*w + 6.25*p.height - 5*p.age + (p.sex==="w" ? -161 : 5);
+  const act = Number(p.activity)||1.375;
+  const goal = p.goal || "aufbau";
+  const adj = goal==="aufbau" ? 0.10 : goal==="reduktion" ? -0.15 : 0;
+  let kcal = Math.round(bmr*act*(1+adj)/10)*10;
+  kcal = Math.max(kcal, Math.round(bmr/10)*10);           // nie unter den Grundumsatz
+  if(p.kcalOverride) kcal = Number(p.kcalOverride);
+  const ppk = Number(p.proteinPerKg) || (goal==="halten" ? 1.6 : 2.0);
+  const protein = Math.round(w*ppk);
+  const fat = Math.round(Math.max(0.8*w, kcal*0.25/9));
+  const carbs = Math.max(0, Math.round((kcal - protein*4 - fat*9)/4));
+  return {kcal, protein, fat, carbs, bmr:Math.round(bmr), tdee:Math.round(bmr*act), weight:w, ppk};
+}
+function sumItems(items){
+  return (items||[]).reduce((a,i)=>({kcal:a.kcal+i.kcal,p:a.p+i.p,c:a.c+i.c,f:a.f+i.f}),{kcal:0,p:0,c:0,f:0});
+}
+function calcItem(food, grams){
+  const k = grams/100;
+  return {kcal:Math.round(food.kcal*k), p:r1(food.p*k), c:r1(food.c*k), f:r1(food.f*k)};
+}
+
+/* ---------- Rendering: Kopf ---------- */
+function renderWho(){
+  const w = $("#who"); w.style.border = "0"; w.style.background = "none";
+  w.innerHTML = `<button class="mechip" data-goto="profil" title="Zum Profil">${esc(pname("p1"))}</button>`;
+}
+function fmtDate(s){
+  const t=today();
+  if(s===t) return "Heute";
+  if(s===addDays(t,-1)) return "Gestern";
+  return parseYmd(s).toLocaleDateString("de-CH",{weekday:"long",day:"numeric",month:"long"});
+}
+
+/* ---------- Rendering: Tag ---------- */
+function renderToday(){
+  $("#dateLabel").textContent = fmtDate(S.date);
+  $("#nextDay").disabled = S.date >= today();
+  const items = (S.day && S.day.items) || [];
+  const sum = sumItems(items);
+  const T = targets();
+  const hero = $("#hero");
+  if(!T){
+    hero.innerHTML = `<div class="hero-p"><span class="big num">${nf0.format(sum.p)}</span><span class="unit">g Protein</span></div>
+      <p class="pnote">Trage im Profil Alter, Grösse und Gewicht ein, dann berechnet die App deine Tagesziele.</p>
+      <button class="btn line" data-goto="profil">Profil ausfüllen</button>`;
+  } else {
+    const pct = Math.min(100, sum.p/T.protein*100);
+    const rest = T.protein - sum.p;
+    const macro = (lbl, val, goal, unit, color) => {
+      const w = Math.min(100, goal ? val/goal*100 : 0), over = val > goal*1.08;
+      return `<div class="macro"><div class="lbl">${lbl}</div>
+        <div class="val num ${over?"over":""}">${nf0.format(val)} <small>/ ${nf0.format(goal)} ${unit}</small></div>
+        <div class="thin"><i style="width:${w}%;background:${over?"var(--danger)":color}"></i></div></div>`;
+    };
+    hero.innerHTML = `
+      <div class="hero-p"><span class="big num">${nf0.format(sum.p)}</span><span class="unit">g Protein</span>
+        <span class="of num">Ziel ${nf0.format(T.protein)} g (${nf1.format(T.ppk)} g pro kg)</span></div>
+      <div class="pbar" role="progressbar" aria-valuemin="0" aria-valuemax="${T.protein}" aria-valuenow="${Math.round(sum.p)}"><i style="width:${pct}%"></i></div>
+      <p class="pnote num">${rest>0 ? `Noch ${nf0.format(rest)} g bis zum Tagesziel.` : "Tagesziel erreicht."}</p>
+      <div class="macros">
+        ${macro("Kalorien", sum.kcal, T.kcal, "kcal", "var(--kcal)")}
+        ${macro("Kohlenhydrate", sum.c, T.carbs, "g", "var(--carb)")}
+        ${macro("Fett", sum.f, T.fat, "g", "var(--fat)")}
+      </div>`;
+  }
+  const rd = $("#recsDay");
+  if(T && S.date===today()) renderRecs(rd, sum, T, items); else rd.innerHTML = "";
+  $("#meals").innerHTML = MEALS.map(([key,label]) => {
+    const list = items.filter(i=>i.meal===key);
+    const s = sumItems(list);
+    return `<section class="meal">
+      <div class="meal-h"><h3>${label}</h3>${list.length?`<span class="meal-sum num">${nf0.format(s.p)} g Protein, ${nf0.format(s.kcal)} kcal</span>`:""}</div>
+      ${list.length?`<ul class="items">${list.map(i=>`<li><button data-edit="${esc(i.id)}">
+          <span><span class="n">${esc(i.name)}</span><span class="g num">${nf0.format(i.grams)} g</span></span>
+          <span class="r num"><b>${nf1.format(i.p)} g</b><span>${nf0.format(i.kcal)} kcal</span></span></button></li>`).join("")}</ul>`:""}
+      <div class="meal-actions">
+        <button class="btn line" data-add="${key}">Lebensmittel hinzufügen</button>
+        ${list.length?"":`<button class="link" data-copy="${key}">Wie am Vortag</button>`}
+      </div></section>`;
+  }).join("");
+}
+
+async function saveItems(items){
+  S.day = {person:S.active, date:S.date, items};
+  S.histKey = "";
+  renderToday();
+  await Store.set(dayPath(), S.day);
+}
+function remember(food){
+  const k="typ:recent:"+(S.uid||S.active);
+  const list=(lsGet(k)||[]).filter(f=>f.name!==food.name);
+  const {_n, ...plain} = food;
+  list.unshift(plain); lsSet(k, list.slice(0,12));
+}
+
+/* ---------- Sheet ---------- */
+const sheet = $("#sheet"), panel = $("#sheetPanel");
+let lastFocus = null;
+function openSheet(html){
+  stopScan();
+  lastFocus = document.activeElement;
+  panel.innerHTML = html; sheet.classList.add("open"); sheet.setAttribute("aria-hidden","false");
+  const f = panel.querySelector("[autofocus]") || panel.querySelector("input,button"); if(f) f.focus();
+}
+function closeSheet(){ stopScan(); sheet.classList.remove("open"); sheet.setAttribute("aria-hidden","true"); panel.innerHTML=""; if(lastFocus) lastFocus.focus(); }
+sheet.addEventListener("click", e => { if(e.target.closest("[data-close]")) closeSheet(); });
+document.addEventListener("keydown", e => { if(e.key==="Escape" && sheet.classList.contains("open")) closeSheet(); });
+
+let addCtx = {meal:"fruehstueck", results:[], ai:null};
+function openAdd(meal){
+  addCtx = {meal, results:[], ai:null};
+  const label = MEALS.find(m=>m[0]===meal)[1];
+  openSheet(`<div class="sheet-h"><h2 id="sheetTitle">${label}</h2><button class="btn line" data-close>Schliessen</button></div>
+    <div class="qrow"><input type="search" id="q" placeholder="Lebensmittel suchen, z. B. Magerquark" autocomplete="off" autofocus aria-label="Lebensmittel suchen">
+    <button class="btn" id="scanBtn" aria-label="Strichcode scannen">Scannen</button></div>
+    <div id="res"></div>
+    <div id="aiBox"></div>
+    <button class="link" id="manualBtn">Eigenes Lebensmittel erfassen (Werte von der Verpackung)</button>`);
+  renderResults("");
+  $("#q").addEventListener("input", e => renderResults(e.target.value));
+  $("#q").addEventListener("keydown", e => { if(e.key==="Enter"){ const b=panel.querySelector("[data-pick]"); if(b) b.click(); } });
+  $("#manualBtn").onclick = () => openManual($("#q").value);
+  $("#scanBtn").onclick = openScanner;
+}
+function searchFoods(q){
+  const n = norm(q).trim(); if(!n) return [];
+  const terms = n.split(/\s+/);
+  const all = [...S.custom, ...BASE, ...BLV];
+  const seen = new Set();
+  return all.filter(f => terms.every(t => f._n.includes(t)))
+    .filter(f => { const k=norm(f.name); if(seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a,b) => ((a.src==="blv") - (b.src==="blv")) || (norm(b.name).startsWith(terms[0]) - norm(a.name).startsWith(terms[0])) || a.name.length-b.name.length)
+    .slice(0,40);
+}
+function foodRow(f, i){
+  const tag = f.src==="claude" ? `<span class="tag">Claude</span>` : f.src==="custom" ? `<span class="tag">eigenes</span>` : f.src==="off" ? `<span class="tag">Marke</span>` : f.src==="blv" ? `<span class="tag">BLV</span>` : "";
+  return `<li><button data-pick="${i}"><span><span>${esc(f.name)}</span>${tag}
+    <span class="meta num" style="display:block">${nf0.format(f.kcal)} kcal pro 100 g</span></span>
+    <span class="pp num">${nf1.format(f.p)} g P</span></button></li>`;
+}
+function renderResults(q){
+  const res = $("#res"); if(!res) return;
+  let list, head = "";
+  if(!q.trim()){
+    list = (lsGet("typ:recent:"+(S.uid||S.active))||[]).map(prepFood);
+    head = list.length ? `<p class="hint">Zuletzt verwendet</p>` : `<p class="hint">Tippe den Namen eines Lebensmittels. Durchsucht werden ${BASE.length+BLV.length} Lebensmittel inklusive Schweizer Nährwertdatenbank, Markenprodukte zusätzlich online. Verpackte Produkte am schnellsten per Strichcode.</p>`;
+  } else list = searchFoods(q);
+  addCtx.results = list;
+  res.innerHTML = head + (list.length ? `<ul class="results">${list.map(foodRow).join("")}</ul>` : "");
+  res.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => openDetail(addCtx.results[+b.dataset.pick]));
+  renderAiBox(q, list.length);
+}
+
+/* Claude-Suche */
+let samplePromise = null;
+function getSample(){ if(!samplePromise) samplePromise = (window.claude && typeof window.claude.use==="function") ? window.claude.use("sample").catch(()=>null) : Promise.resolve(null); return samplePromise; }
+let sampleOff = false;
+let offTimer = null, offDisabled = false;
+const manualHint = `<p class="hint">Nichts gefunden. Erfasse das Lebensmittel mit den Werten von der Verpackung.</p>`;
+function renderAiBox(q, count){
+  const box = $("#aiBox"); if(!box) return;
+  clearTimeout(offTimer);
+  q = q.trim();
+  if(q.length < 3){ box.innerHTML = ""; return; }
+  if(offDisabled){ box.innerHTML = count ? "" : manualHint; return; }
+  box.innerHTML = `<p class="hint">Markenprodukte werden gesucht …</p>`;
+  offTimer = setTimeout(() => offSearch(q, count), 450);
+}
+async function offSearch(q, count){
+  const box = $("#aiBox"); if(!box) return;
+  const fields = "code,product_name,product_name_de,brands,nutriments,serving_quantity,countries_tags";
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&fields=${fields}`;
+  let data;
+  try{
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 9000);
+    const r = await fetch(url, {signal:ctrl.signal}); clearTimeout(to);
+    if(!r.ok) throw new Error("http");
+    data = await r.json();
+  }catch(e){
+    if(e && e.name==="TypeError") offDisabled = true;      // kein Netz oder blockiert
+    if($("#aiBox")) $("#aiBox").innerHTML = count ? "" : manualHint;
+    return;
+  }
+  const qNow = $("#q"); if(!qNow || qNow.value.trim()!==q || !$("#aiBox")) return;
+  const num = v => typeof v==="number" ? v : (typeof v==="string" && v.trim()!=="" && !isNaN(+v) ? +v : null);
+  const prods = (data.products||[]).map(p => {
+    const n = p.nutriments||{};
+    const kcal = num(n["energy-kcal_100g"]) ?? (num(n["energy_100g"])!=null ? num(n["energy_100g"])/4.184 : null);
+    const pr = num(n.proteins_100g), c = num(n.carbohydrates_100g), f = num(n.fat_100g);
+    const name = (p.product_name_de || p.product_name || "").trim();
+    if(!name || kcal==null || pr==null || kcal>950) return null;
+    const brand = (p.brands||"").split(",")[0].trim();
+    const sq = num(p.serving_quantity);
+    return {food: prepFood({id:"o"+(p.code||Math.random().toString(36).slice(2)), name:(brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} (${brand})` : name).slice(0,80),
+      kcal:Math.round(kcal), p:r1(pr), c:r1(c||0), f:r1(f||0), portionLabel:"Portion", portionG: sq && sq>0 && sq<2000 ? Math.round(sq) : null, src:"off"}),
+      ch:(p.countries_tags||[]).includes("en:switzerland")};
+  }).filter(Boolean).sort((a,b)=>b.ch-a.ch).slice(0,10).map(x=>x.food);
+  if(!prods.length){ $("#aiBox").innerHTML = count ? "" : manualHint; return; }
+  addCtx.off = prods;
+  $("#aiBox").innerHTML = `<p class="hint">Markenprodukte aus Open Food Facts (Schweizer Produkte zuerst)</p>
+    <ul class="results">${prods.map((f,i)=>foodRow(f,"off"+i)).join("")}</ul>`;
+  $("#aiBox").querySelectorAll("[data-pick]").forEach(b => b.onclick = () => openDetail(addCtx.off[+b.dataset.pick.slice(3)], true));
+}
+async function saveCustomFood(food){
+  const {_n, ...plain} = food;
+  const current = (await Store.get("foods/custom")) || {items:[]};
+  const items = (current.items||[]).filter(f => norm(f.name)!==norm(plain.name));
+  items.unshift(plain);
+  S.custom = items.slice(0,400).map(prepFood);
+  await Store.set("foods/custom", {items: items.slice(0,400)});
+}
+
+/* ---------- Strichcode-Scanner ---------- */
+let scanStop = null;
+function stopScan(){ const s = scanStop; scanStop = null; if(s){ try{ s(); }catch(e){} } }
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement("script"); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+async function openScanner(){
+  openSheet(`<div class="sheet-h"><h2 id="sheetTitle">Strichcode scannen</h2><button class="btn line" id="scBack">Zurück</button></div>
+    <div id="scView" class="scview"></div>
+    <p class="hint" id="scHint">Kamera wird gestartet …</p>
+    <div class="inline"><label class="field"><span>Oder Strichcode eintippen</span><input type="text" id="scCode" inputmode="numeric" autocomplete="off"></label><button class="btn" id="scGo">Suchen</button></div>`);
+  $("#scBack").onclick = () => openAdd(addCtx.meal);
+  $("#scGo").onclick = () => { const c = $("#scCode").value.replace(/\D/g,""); if(c.length>=8) lookupBarcode(c); else $("#scCode").focus(); };
+  const hint = t => { const e=$("#scHint"); if(e) e.textContent = t; };
+  let done = false;
+  const found = code => { if(done) return; done = true; if(navigator.vibrate) navigator.vibrate(60); stopScan(); lookupBarcode(code); };
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ hint("Die Kamera ist hier nicht verfügbar. Tippe den Strichcode ein."); return; }
+  try{
+    let native = false;
+    if("BarcodeDetector" in window){ try{ const f = await BarcodeDetector.getSupportedFormats(); native = f.includes("ean_13"); }catch(e){} }
+    if(native){
+      const det = new BarcodeDetector({formats:["ean_13","ean_8","upc_a","upc_e"]});
+      const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}, audio:false});
+      const view = $("#scView"); if(!view){ stream.getTracks().forEach(t=>t.stop()); return; }
+      const v = document.createElement("video"); v.setAttribute("playsinline",""); v.muted = true; v.srcObject = stream; view.appendChild(v); await v.play();
+      let alive = true, timer = null;
+      scanStop = () => { alive = false; clearTimeout(timer); stream.getTracks().forEach(t=>t.stop()); };
+      hint("Strichcode in den Rahmen halten.");
+      const tick = async () => { if(!alive) return; try{ const r = await det.detect(v); if(r && r[0] && r[0].rawValue) return found(r[0].rawValue); }catch(e){} timer = setTimeout(tick, 200); };
+      tick();
+    } else {
+      if(!window.__Html5QrcodeLibrary__) await loadScript("https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js");
+      const L = window.__Html5QrcodeLibrary__; if(!$("#scView")) return;
+      const F = L.Html5QrcodeSupportedFormats;
+      const q = new L.Html5Qrcode("scView", {formatsToSupport:[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E], verbose:false});
+      await q.start({facingMode:"environment"}, {fps:10, qrbox:(w,h)=>({width:Math.min(300,w*0.85), height:Math.min(140,h*0.5)})}, txt => found(txt), () => {});
+      scanStop = () => { q.stop().then(()=>q.clear()).catch(()=>{}); };
+      hint("Strichcode in den Rahmen halten.");
+    }
+  }catch(e){
+    hint(e && e.name==="NotAllowedError" ? "Kein Kamerazugriff erlaubt. Erlaube die Kamera in den Browsereinstellungen oder tippe den Strichcode ein." : "Die Kamera konnte nicht gestartet werden. Tippe den Strichcode ein.");
+  }
+}
+async function lookupBarcode(code){
+  const local = S.custom.find(f => f.barcode===code);
+  if(local){ openDetail(local); return; }
+  openSheet(`<div class="sheet-h"><h2 id="sheetTitle">Produkt wird gesucht</h2><button class="btn line" data-close>Schliessen</button></div><p class="hint">Strichcode ${esc(code)} …</p>`);
+  try{
+    const ctrl = new AbortController(); const to = setTimeout(()=>ctrl.abort(), 9000);
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_de,brands,nutriments,serving_quantity`, {signal:ctrl.signal});
+    clearTimeout(to);
+    const j = r.ok ? await r.json() : null;
+    const pr = j && j.status===1 ? j.product : null;
+    const n = (pr && pr.nutriments) || {};
+    const num = v => typeof v==="number" ? v : (typeof v==="string" && v.trim()!=="" && !isNaN(+v) ? +v : null);
+    const kcal = num(n["energy-kcal_100g"]) ?? (num(n["energy_100g"])!=null ? num(n["energy_100g"])/4.184 : null);
+    const name = pr ? (pr.product_name_de || pr.product_name || "").trim() : "";
+    if(pr && name && kcal!=null && num(n.proteins_100g)!=null){
+      const brand = (pr.brands||"").split(",")[0].trim(), sq = num(pr.serving_quantity);
+      openDetail(prepFood({id:"o"+code, barcode:code, name:(brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${name} (${brand})` : name).slice(0,80),
+        kcal:Math.round(kcal), p:r1(num(n.proteins_100g)), c:r1(num(n.carbohydrates_100g)||0), f:r1(num(n.fat_100g)||0),
+        portionLabel:"Portion", portionG: sq && sq>0 && sq<2000 ? Math.round(sq) : null, src:"off"}), true);
+      return;
+    }
+    openManual(name, code);
+  }catch(e){
+    toast("Keine Verbindung zur Produktdatenbank. Bitte Werte selbst erfassen.");
+    openManual("", code);
+  }
+}
+
+/* Menge wählen */
+function openDetail(food, isNew=false){
+  const label = MEALS.find(m=>m[0]===addCtx.meal)[1];
+  const start = food.portionG || 100;
+  openSheet(`<div class="sheet-h"><h2 id="sheetTitle">${esc(food.name)}</h2><button class="btn line" id="back">Zurück</button></div>
+    <p class="small num">Pro 100 g: ${nf0.format(food.kcal)} kcal, ${nf1.format(food.p)} g Protein, ${nf1.format(food.c)} g Kohlenhydrate, ${nf1.format(food.f)} g Fett</p>
+    <label class="field"><span>Menge in Gramm</span><input type="number" id="grams" value="${start}" min="1" max="3000" step="1" inputmode="decimal" autofocus></label>
+    <div class="chips">
+      ${food.portionG ? `<button data-g="${food.portionG}">1 ${esc(food.portionLabel)} (${food.portionG} g)</button><button data-g="${food.portionG*2}">2 ${esc(food.portionLabel)}</button>` : ""}
+      <button data-g="100">100 g</button>
+    </div>
+    <div class="preview" id="pv"></div>
+    <button class="btn wide" id="addIt">Zu ${label} hinzufügen</button>`);
+  const g = $("#grams");
+  const upd = () => { const v = calcItem(food, Number(g.value)||0);
+    $("#pv").innerHTML = `<div class="pv">Protein<b class="num">${nf1.format(v.p)} g</b></div><div>Kalorien<b class="num">${nf0.format(v.kcal)}</b></div><div>KH<b class="num">${nf1.format(v.c)} g</b></div><div>Fett<b class="num">${nf1.format(v.f)} g</b></div>`; };
+  upd(); g.addEventListener("input", upd);
+  panel.querySelectorAll("[data-g]").forEach(b => b.onclick = () => { g.value=b.dataset.g; upd(); });
+  $("#back").onclick = () => openAdd(addCtx.meal);
+  $("#addIt").onclick = async () => {
+    const grams = Number(g.value); if(!(grams>0)){ g.focus(); return; }
+    if(isNew) await saveCustomFood(food);
+    const v = calcItem(food, grams);
+    const item = {id:"i"+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name:food.name, grams, ...v, meal:addCtx.meal,
+      per100:{kcal:food.kcal,p:food.p,c:food.c,f:food.f}};
+    remember(food);
+    closeSheet();
+    await saveItems([...((S.day&&S.day.items)||[]), item]);
+    toast(`${food.name} hinzugefügt`);
+  };
+}
+
+/* Eigenes Lebensmittel */
+function openManual(prefill="", barcode=null){
+  openSheet(`<div class="sheet-h"><h2 id="sheetTitle">Eigenes Lebensmittel</h2><button class="btn line" id="back">Zurück</button></div>
+    ${barcode ? `<p class="hint">Strichcode ${esc(barcode)} ist noch nicht erfasst. Einmal eintragen, danach erkennt die App das Produkt beim Scannen.</p>` : ""}
+    <label class="field"><span>Name</span><input type="text" id="mName" value="${esc(prefill)}" maxlength="80" autofocus></label>
+    <p class="small">Werte pro 100 g, wie auf der Verpackung</p>
+    <div class="grid4">
+      <label class="field"><span>kcal</span><input type="number" id="mK" min="0" step="1" inputmode="decimal"></label>
+      <label class="field"><span>Protein</span><input type="number" id="mP" min="0" step="0.1" inputmode="decimal"></label>
+      <label class="field"><span>KH</span><input type="number" id="mC" min="0" step="0.1" inputmode="decimal"></label>
+      <label class="field"><span>Fett</span><input type="number" id="mF" min="0" step="0.1" inputmode="decimal"></label>
+    </div>
+    <div class="grid2">
+      <label class="field"><span>Portion (optional)</span><input type="text" id="mPL" placeholder="z. B. Becher" maxlength="20"></label>
+      <label class="field"><span>Portion in g</span><input type="number" id="mPG" min="1" step="1" inputmode="decimal"></label>
+    </div>
+    <button class="btn wide" id="mSave">Speichern und Menge wählen</button>`);
+  $("#back").onclick = () => openAdd(addCtx.meal);
+  $("#mSave").onclick = () => {
+    const name = $("#mName").value.trim(), k=Number($("#mK").value);
+    if(!name){ $("#mName").focus(); return; }
+    if(!($("#mK").value!=="" && k>=0)){ $("#mK").focus(); return; }
+    const food = prepFood({id:"u"+Date.now().toString(36), name, kcal:k, p:Number($("#mP").value)||0, c:Number($("#mC").value)||0, f:Number($("#mF").value)||0,
+      portionLabel:$("#mPL").value.trim()||"Portion", portionG:Number($("#mPG").value)||null, src:"custom", barcode});
+    openDetail(food, true);
+  };
+}
+
+/* Eintrag bearbeiten */
+function openEdit(id){
+  const items = (S.day&&S.day.items)||[]; const it = items.find(i=>i.id===id); if(!it) return;
+  const per = it.per100 || {kcal:it.kcal/it.grams*100, p:it.p/it.grams*100, c:it.c/it.grams*100, f:it.f/it.grams*100};
+  openSheet(`<div class="sheet-h"><h2 id="sheetTitle">${esc(it.name)}</h2><button class="btn line" data-close>Schliessen</button></div>
+    <div class="grid2">
+      <label class="field"><span>Menge in Gramm</span><input type="number" id="eG" value="${it.grams}" min="1" step="1" inputmode="decimal" autofocus></label>
+      <label class="field"><span>Mahlzeit</span><select id="eM">${MEALS.map(([k,l])=>`<option value="${k}" ${k===it.meal?"selected":""}>${l}</option>`).join("")}</select></label>
+    </div>
+    <div class="preview" id="pv"></div>
+    <div class="row-actions"><button class="btn danger" id="eDel">Entfernen</button><button class="btn" id="eSave">Speichern</button></div>`);
+  const g=$("#eG");
+  const upd=()=>{ const v=calcItem(per, Number(g.value)||0);
+    $("#pv").innerHTML = `<div class="pv">Protein<b class="num">${nf1.format(v.p)} g</b></div><div>Kalorien<b class="num">${nf0.format(v.kcal)}</b></div><div>KH<b class="num">${nf1.format(v.c)} g</b></div><div>Fett<b class="num">${nf1.format(v.f)} g</b></div>`; };
+  upd(); g.addEventListener("input",upd);
+  $("#eDel").onclick = async () => { closeSheet(); await saveItems(items.filter(i=>i.id!==id)); toast("Eintrag entfernt"); };
+  $("#eSave").onclick = async () => {
+    const grams=Number(g.value); if(!(grams>0)){ g.focus(); return; }
+    const v=calcItem(per, grams);
+    const meal = $("#eM").value;
+    closeSheet();
+    await saveItems(items.map(i => i.id===id ? {...i, grams, ...v, meal} : i));
+  };
+}
+
+async function copyFromYesterday(meal){
+  const prev = await Store.get(dayPath(S.active, addDays(S.date,-1)));
+  const list = ((prev&&prev.items)||[]).filter(i=>i.meal===meal);
+  if(!list.length){ toast("Am Vortag gibt es für diese Mahlzeit keine Einträge."); return; }
+  const stamp = Date.now().toString(36);
+  const copies = list.map((i,n)=>({...i, id:"i"+stamp+n}));
+  await saveItems([...((S.day&&S.day.items)||[]), ...copies]);
+  toast(`${copies.length} Einträge übernommen`);
+}
+
+/* ---------- Verlauf ---------- */
+function renderWeights(){
+  const e = S.weights[S.active]||{};
+  const keys = Object.keys(e).sort();
+  const T = targets(); const p = person();
+  const t = today();
+  const wt = weightTrend(), cur = wt.cur, diff = wt.perWeek;
+  const goalW = Number(p.goalWeight)||null;
+  const we = thisWeekEntry();
+  $("#wWeekNote").textContent = we ? `Diese Woche bereits gewogen (${nf1.format(we.kg)} kg). Ein neuer Wert ersetzt ihn.` : "Einmal pro Woche wiegen reicht. Am besten morgens, nüchtern, gleiche Waage.";
+  $("#wStats").innerHTML = `
+    <div>Aktuell<b class="num">${cur!=null? nf1.format(cur)+" kg":"–"}</b></div>
+    <div>Veränderung pro Woche<b class="num">${diff!=null? (diff>0?"+":diff<0?"−":"")+nf1.format(Math.abs(diff))+" kg":"–"}</b></div>
+    <div>Bis Zielgewicht<b class="num">${goalW&&cur!=null? nf1.format(goalW-cur)+" kg":"–"}</b></div>`;
+  const chart = $("#wChart");
+  const pts = keys.filter(k => k > addDays(t,-91));
+  if(pts.length < 2){ chart.innerHTML = `<p class="hint">Sobald zwei Wiegungen erfasst sind, erscheint hier der Verlauf. </p>`; return; }
+  const W=600,H=220,pl=40,pr=12,pt=14,pb=26;
+  const x0=parseYmd(pts[0]).getTime(), x1=Math.max(parseYmd(pts[pts.length-1]).getTime(), x0+86400000);
+  let vals = pts.map(k=>e[k]); if(goalW) vals=[...vals, goalW];
+  let lo=Math.min(...vals)-0.5, hi=Math.max(...vals)+0.5;
+  const X = k => pl + (parseYmd(k).getTime()-x0)/(x1-x0)*(W-pl-pr);
+  const Y = v => pt + (hi-v)/(hi-lo)*(H-pt-pb);
+  const ma = pts.map(k => { const w=keys.filter(j=>j>addDays(k,-7)&&j<=k).map(j=>e[j]); return [k, w.reduce((a,b)=>a+b,0)/w.length]; });
+  const ticks = [lo+0.5, (lo+hi)/2, hi-0.5];
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Gewichtsverlauf der letzten 90 Tage">
+    ${ticks.map(v=>`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${pl-6}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${nf1.format(v)}</text>`).join("")}
+    ${goalW?`<line x1="${pl}" x2="${W-pr}" y1="${Y(goalW)}" y2="${Y(goalW)}" stroke="var(--carb)" stroke-dasharray="5 5"/><text x="${W-pr}" y="${Y(goalW)-5}" text-anchor="end" font-size="11" fill="var(--carb)">Ziel ${nf1.format(goalW)} kg</text>`:""}
+    ${pts.map(k=>`<circle cx="${X(k)}" cy="${Y(e[k])}" r="3" fill="var(--muted)" opacity=".55"/>`).join("")}
+    <polyline fill="none" stroke="var(--protein)" stroke-width="2.5" stroke-linejoin="round" points="${ma.map(([k,v])=>X(k)+","+Y(v)).join(" ")}"/>
+    <text x="${pl}" y="${H-6}" font-size="11" fill="var(--muted)">${parseYmd(pts[0]).toLocaleDateString("de-CH",{day:"numeric",month:"short"})}</text>
+    <text x="${W-pr}" y="${H-6}" text-anchor="end" font-size="11" fill="var(--muted)">${parseYmd(pts[pts.length-1]).toLocaleDateString("de-CH",{day:"numeric",month:"short"})}</text>
+  </svg><p class="small">Punkte: Wochenwiegungen. Linie: Verlauf.</p>`;
+}
+async function renderWeek(){
+  const T = targets(); const t = today();
+  const days = Array.from({length:7},(_,i)=>addDays(t,-i));
+  const docs = await Store.getMany(days.map(d => dayPath(S.active,d)));
+  let hit=0, logged=0;
+  const rows = days.map((d,i) => {
+    const s = sumItems((docs[i]&&docs[i].items)||[]);
+    if(s.kcal>0) logged++;
+    const goal = T ? T.protein : 150;
+    if(T && s.p >= goal*0.95) hit++;
+    const w = Math.min(100, s.p/goal*100);
+    return `<li><span class="d">${parseYmd(d).toLocaleDateString("de-CH",{weekday:"short",day:"numeric"})}</span>
+      <span class="bar"><i style="width:${w}%"></i></span>
+      <span class="v num">${nf0.format(s.p)} g<span>${nf0.format(s.kcal)} kcal</span></span></li>`;
+  });
+  $("#week").innerHTML = rows.join("");
+  $("#weekNote").textContent = T ? `Proteinziel an ${hit} von 7 Tagen erreicht, ${logged} Tage erfasst.` : "Fülle das Profil aus, damit Ziele angezeigt werden.";
+}
+$("#wSave").onclick = async () => {
+  const kg = Number($("#wKg").value);
+  if(!(kg>=30 && kg<=250)){ $("#wKg").focus(); toast("Bitte ein Gewicht zwischen 30 und 250 kg eingeben."); return; }
+  await saveWeeklyWeight(kg); $("#wKg").value = ""; renderWeights();
+};
+
+/* ---------- Profil ---------- */
+function renderProfile(){
+  const p = person(); const T = targets();
+  const sel = (id, obj, cur) => `<select id="${id}">${Object.entries(obj).map(([k,l])=>`<option value="${k}" ${String(k)===String(cur)?"selected":""}>${l}</option>`).join("")}</select>`;
+  $("#profileForm").innerHTML = `
+    <div class="grid2">
+      <label class="field"><span>Name</span><input type="text" id="fName" value="${esc(p.name||DEFAULT_NAMES[S.active])}" maxlength="30"></label>
+      <label class="field"><span>Berechnung nach</span>${sel("fSex",{m:"Mann",w:"Frau"},p.sex||"m")}</label>
+      <label class="field"><span>Alter</span><input type="number" id="fAge" value="${p.age??""}" min="14" max="99" inputmode="numeric"></label>
+      <label class="field"><span>Grösse in cm</span><input type="number" id="fH" value="${p.height??""}" min="120" max="230" inputmode="numeric"></label>
+      <label class="field"><span>Gewicht in kg</span><input type="number" id="fW" value="${p.weight??latestWeight(S.active)??""}" min="30" max="250" step="0.1" inputmode="decimal"></label>
+      <label class="field"><span>Zielgewicht in kg</span><input type="number" id="fGW" value="${p.goalWeight??""}" min="30" max="250" step="0.1" inputmode="decimal"></label>
+    </div>
+    <p class="small" style="margin:4px 0 8px">Umfänge für eine genauere Körperfett-Schätzung (optional, Massband, morgens messen)</p>
+    <div class="grid2">
+      <label class="field"><span>Bauchumfang auf Nabelhöhe, cm</span><input type="number" id="fWaist" value="${p.waist??""}" min="50" max="200" step="0.5" inputmode="decimal"></label>
+      <label class="field"><span>Halsumfang unter dem Kehlkopf, cm</span><input type="number" id="fNeck" value="${p.neck??""}" min="25" max="60" step="0.5" inputmode="decimal"></label>
+      <label class="field"><span>Hüftumfang, cm (für Frauen nötig)</span><input type="number" id="fHip" value="${p.hip??""}" min="60" max="200" step="0.5" inputmode="decimal"></label>
+    </div>
+    <label class="field"><span>Aktivität</span>${sel("fAct",ACT,p.activity||1.375)}</label>
+    <div class="grid2">
+      <label class="field"><span>Ziel</span>${sel("fGoal",GOALS,p.goal||"aufbau")}</label>
+      <label class="field"><span>Protein pro kg Körpergewicht</span>${sel("fPPK",{"":"Automatisch",1.6:"1,6 g",1.8:"1,8 g",2.0:"2,0 g",2.2:"2,2 g"},p.proteinPerKg||"")}</label>
+    </div>
+    <label class="field"><span>Eigenes Kalorienziel (optional, überschreibt die Berechnung)</span><input type="number" id="fKO" value="${p.kcalOverride??""}" min="1200" max="6000" step="10" inputmode="numeric"></label>
+    <button class="btn wide" id="fSave">Profil speichern</button>
+    ${T ? `<h2 class="sec">Deine Tagesziele</h2>
+    <table class="targets num"><thead><tr><th>Wert</th><th>Ziel pro Tag</th></tr></thead><tbody>
+      <tr><td>Protein</td><td>${nf0.format(T.protein)} g</td></tr>
+      <tr><td>Kalorien</td><td>${nf0.format(T.kcal)} kcal</td></tr>
+      <tr><td>Kohlenhydrate</td><td>${nf0.format(T.carbs)} g</td></tr>
+      <tr><td>Fett</td><td>${nf0.format(T.fat)} g</td></tr>
+      <tr><td>Grundumsatz</td><td>${nf0.format(T.bmr)} kcal</td></tr>
+      <tr><td>Gesamtumsatz</td><td>${nf0.format(T.tdee)} kcal</td></tr>
+    </tbody></table>
+    <p class="small">Berechnung nach Mifflin-St Jeor. Muskelaufbau: +10 % Kalorien, Fett reduzieren: −15 %, nie unter dem Grundumsatz. Das Gewicht stammt aus der letzten Wiegung im Verlauf. Richtwerte, keine medizinische Beratung.</p>` : ""}`;
+  if(S.cloud){
+    $("#profileForm").insertAdjacentHTML("beforeend", `
+      <h2 class="sec">Konto</h2>
+      <p class="small">Angemeldet als <b>${esc(S.email||"")}</b>. Deine Daten sind nur für dich sichtbar. Der Administrator sieht nur Name, E-Mail, Registrierungsdatum und Aktivität.</p>
+      <div class="row-actions"><button class="btn line" id="acExport">Daten exportieren</button><button class="btn line" id="acLogout">Abmelden</button></div>
+      <p style="margin-top:14px"><button class="link" id="acDelete" style="color:var(--danger)">Konto und alle Daten löschen</button></p>
+      <p class="source">Nährwertquellen: Schweizer Nährwertdatenbank, Bundesamt für Lebensmittelsicherheit und Veterinärwesen BLV (Version 5.3, naehrwertdaten.ch); Open Food Facts (openfoodfacts.org, Lizenz ODbL). Alle Werte ohne Gewähr.</p>`);
+    $("#acExport").onclick = exportCloud;
+    $("#acLogout").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+    $("#acDelete").onclick = deleteAccount;
+  } else
+  $("#profileForm").insertAdjacentHTML("beforeend", `
+    <h2 class="sec">Datensicherung</h2>
+    <p class="small">Alle Daten liegen nur in diesem Browser auf diesem Gerät. Wer den Browserverlauf inklusive Website-Daten löscht, verliert sie. Sichere sie deshalb ab und zu.${lsGet("typ:lastBackup")?` Letzte Sicherung: ${parseYmd(lsGet("typ:lastBackup")).toLocaleDateString("de-CH")}.`:""}</p>
+    <div class="row-actions"><button class="btn line" id="bkExport">Sicherung herunterladen</button><button class="btn line" id="bkImport">Sicherung einlesen</button></div>
+    <input type="file" id="bkFile" accept="application/json,.json" hidden>
+    <p class="source">Nährwertquellen: Schweizer Nährwertdatenbank, Bundesamt für Lebensmittelsicherheit und Veterinärwesen BLV (Version 5.3, naehrwertdaten.ch); Open Food Facts (openfoodfacts.org, Lizenz ODbL). Alle Werte ohne Gewähr.</p>`);
+  if(!S.cloud){ $("#bkExport").onclick = exportData;
+  $("#bkImport").onclick = () => $("#bkFile").click();
+  $("#bkFile").onchange = e => { const f = e.target.files[0]; if(f) importData(f); }; }
+  $("#fSave").onclick = async () => {
+    const num = id => { const v=$(id).value; return v===""?null:Number(v); };
+    const data = {name:$("#fName").value.trim()||DEFAULT_NAMES[S.active], sex:$("#fSex").value, age:num("#fAge"), height:num("#fH"),
+      weight:num("#fW"), goalWeight:num("#fGW"), activity:Number($("#fAct").value), goal:$("#fGoal").value,
+      proteinPerKg:$("#fPPK").value?Number($("#fPPK").value):null, kcalOverride:num("#fKO"),
+      waist:num("#fWaist"), neck:num("#fNeck"), hip:num("#fHip")};
+    const old = person();
+    const changedM = data.waist!==old.waist || data.neck!==old.neck || data.hip!==old.hip;
+    data.measureWeight = changedM ? (weightTrend().cur || data.weight) : (old.measureWeight ?? null);
+    S.people[S.active] = data;
+    const ok = await Store.set("people/"+S.active, data);
+    if(S.cloud && sb){ sb.from("profiles").update({display_name:data.name}).eq("id", S.uid).then(()=>{}); }
+    if(data.weight && !latestWeight(S.active)){
+      const entries = {[today()]: r1(data.weight)}; S.weights[S.active]=entries;
+      await Store.set("weights/"+S.active, {entries});
+    }
+    renderWho(); renderProfile();
+    if(ok) toast("Profil gespeichert");
+  };
+}
+
+/* ---------- Körperzusammensetzung ---------- */
+const clamp = (x,a,b) => Math.min(b, Math.max(a, x));
+function weightTrend(pid=S.active){
+  const e = S.weights[pid]||{}; const keys = Object.keys(e).sort(); const t = today();
+  if(!keys.length) return {cur:null, perWeek:null};
+  const cur = e[keys[keys.length-1]];
+  const recent = keys.filter(k => k > addDays(t,-43));
+  let perWeek = null;
+  if(recent.length >= 2){
+    const xs = recent.map(k => (parseYmd(k)-parseYmd(recent[0]))/864e5), ys = recent.map(k=>e[k]);
+    const span = xs[xs.length-1];
+    if(span >= 5){
+      const mx = xs.reduce((a,b)=>a+b,0)/xs.length, my = ys.reduce((a,b)=>a+b,0)/ys.length;
+      const num = xs.reduce((a,x,i)=>a+(x-mx)*(ys[i]-my),0), den = xs.reduce((a,x)=>a+(x-mx)**2,0);
+      perWeek = den ? num/den*7 : null;
+    }
+  }
+  return {cur, perWeek};
+}
+function bodyComp(pid=S.active){
+  const p = person(pid);
+  const w = weightTrend(pid).cur || p.weight;
+  if(!w || !p.height || !p.age) return null;
+  const h = p.height, male = p.sex !== "w";
+  let bf, method;
+  if(p.waist && p.neck && (male || p.hip)){
+    const l = Math.log10;
+    const bf0 = male ? 495/(1.0324-0.19077*l(p.waist-p.neck)+0.15456*l(h))-450
+                     : 495/(1.29579-0.35004*l(p.waist+p.hip-p.neck)+0.22100*l(h))-450;
+    const w0 = p.measureWeight || w;
+    const fm = w0*bf0/100 + (w-w0)*0.75;            // Gewichtsänderung seit Messung: ca. 75 % Fett
+    bf = fm/w*100; method = "Umfangmessung (US-Navy-Formel)";
+  } else {
+    const bmi = w/((h/100)**2);
+    bf = 1.2*bmi + 0.23*p.age - 10.8*(male?1:0) - 5.4;
+    method = "Schätzung aus BMI und Alter";
+  }
+  bf = clamp(bf, male?4:10, 55);
+  return compose(w, bf, h, male, method);
+}
+function compose(w, bf, h, male, method){
+  const fat = w*bf/100, lean = w-fat, hm = h/100;
+  const ffmi = lean/(hm*hm) + 6.1*(1.8-hm);
+  return {w, bf, fat, lean, ffmi, male, h, method};
+}
+function bfLabel(bf, male){
+  const s = male ? [10,15,20,25] : [18,23,28,33];
+  return bf<s[0] ? "Sehr definiert" : bf<s[1] ? "Athletisch" : bf<s[2] ? "Fit" : bf<s[3] ? "Durchschnittlich" : "Erhöht";
+}
+function ffmiLabel(x, male){
+  const s = male ? [17,19,21,23] : [14.5,16,17.5,19];
+  return x<s[0] ? "Unterdurchschnittlich" : x<s[1] ? "Durchschnittlich" : x<s[2] ? "Überdurchschnittlich" : x<s[3] ? "Sehr muskulös" : "Aussergewöhnlich";
+}
+/* Prognose: Energiebilanz und Proteinzufuhr der letzten 14 Tage fortgeschrieben */
+function project(bc, st, weeks){
+  const T = targets(); if(!bc || !T || !st || st.logged < 3 || !weeks) return null;
+  const bal = st.avgKcal - T.tdee;
+  const dW = bal*7*weeks/7700;
+  const r = Math.min(1, st.avgP/T.protein);
+  let dLean;
+  if(dW >= 0){ const maxLean = (bc.male?0.2:0.1)*weeks*(0.3+0.7*r); dLean = Math.min(dW*(0.15+0.4*r), maxLean); }
+  else { dLean = dW*Math.max(0.08, 0.35-0.27*r); }
+  const w = Math.max(35, bc.w + dW);
+  const fat = Math.max(bc.w*(bc.male?0.04:0.1)*0.9, bc.fat + (dW - dLean));
+  const lean = w - fat;
+  const res = compose(w, fat/w*100, bc.h, bc.male, bc.method);
+  res.lean = lean; return res;
+}
+
+/* ---------- Avatar ---------- */
+function smooth(pts){
+  const n = pts.length; let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for(let i=0;i<n;i++){
+    const p0=pts[(i-1+n)%n], p1=pts[i], p2=pts[(i+1)%n], p3=pts[(i+2)%n];
+    const c1=[p1[0]+(p2[0]-p0[0])/6, p1[1]+(p2[1]-p0[1])/6], c2=[p2[0]-(p3[0]-p1[0])/6, p2[1]-(p3[1]-p1[1])/6];
+    d += ` C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d+"Z";
+}
+function figureShapes(bc){
+  const male = bc.male;
+  const f = clamp(male ? (bc.bf-8)/24 : (bc.bf-15)/27, 0, 1);
+  const m = clamp(male ? (bc.ffmi-16)/8 : (bc.ffmi-13.5)/6.5, 0, 1);
+  const c = 100, L = x => c-x, R = x => c+x;
+  const nh=7+m*3.5+f*2.5, aw=7+m*5.5+f*5.5,
+        sh=(male?38:31)+m*12+f*5,                 // Schulterbreite inkl. Deltamuskel
+        sj=sh-aw,                                   // Schulterkante des Rumpfs
+        ch=sj-2+f*9, wh=(male?22:18.5)+f*27+m*3, hh=(male?26:31)+f*18+m*2,
+        tw=(male?14:15.5)+f*9+m*4, kw=8+f*3+m*1.5, cw=8.5+m*3+f*3.5;
+  const side = s => [[s(nh),48],[s(nh+1),62],[s(sj-6),70],[s(sj),84],[s(ch),116],[s(Math.max(ch,wh)*0.96+f*4),148],[s(wh),176],[s(hh),212],[s(hh-4),236]];
+  const lt = side(L), rt = side(R).reverse();
+  const torso = smooth([...lt, ...rt]);
+  const lc = hh*0.52;
+  const leg = s => smooth([[s(hh-2),222],[s(lc+tw),262],[s(lc+kw),294],[s(lc+cw),314],[s(lc+5),346],[s(Math.max(1.5,lc-5)),346],[s(Math.max(1.5,lc-cw+2)),314],[s(Math.max(1.5,lc-kw)),294],[s(Math.max(1.5,lc-tw+3)),262],[s(1.5),242]]);
+  const ex = Math.max(ch, wh*0.97) + aw*0.95 + 1.5, wx = Math.max(hh, wh) + aw*0.75 + 2;
+  const arm = s => ({upper:`M${s(sj+aw*0.2)},${86}  Q${s(ex-1.5)},120 ${s(ex)},158`, fore:`M${s(ex)},158 Q${s((ex+wx)/2+1)},190 ${s(wx)},220`, hand:[s(wx),228]});
+  const def = clamp(m*1.25 - f*1.15, 0, 0.85);
+  return {torso, legs:[leg(L),leg(R)], arms:[arm(L),arm(R)], aw, def, ch, sh, c, L, R};
+}
+function figureSvg(F, fill, op=1){
+  const a = F.arms.map(x=>`<path d="${x.upper}" stroke="${fill}" stroke-width="${(F.aw*2).toFixed(1)}" stroke-linecap="round" fill="none"/>
+    <path d="${x.fore}" stroke="${fill}" stroke-width="${(F.aw*1.6).toFixed(1)}" stroke-linecap="round" fill="none"/>
+    <circle cx="${x.hand[0]}" cy="${x.hand[1]}" r="${(F.aw*0.8).toFixed(1)}" fill="${fill}"/>`).join("");
+  return `<g opacity="${op}">${a}${F.legs.map(d=>`<path d="${d}" fill="${fill}"/>`).join("")}
+    <path d="${F.torso}" fill="${fill}"/><circle cx="100" cy="34" r="20" fill="${fill}"/>
+    <ellipse cx="${F.L(Math.max(12,F.ch*0.55))}" cy="350" rx="11" ry="5" fill="${fill}"/><ellipse cx="${F.R(Math.max(12,F.ch*0.55))}" cy="350" rx="11" ry="5" fill="${fill}"/></g>`;
+}
+function defSvg(F){
+  if(F.def < 0.05) return "";
+  const {L,R,c,ch,sh} = F;
+  return `<g stroke="var(--figure-line)" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="${F.def.toFixed(2)}">
+    <path d="M${L(ch-5)},116 Q${L(ch*0.45)},134 ${c},126 Q${R(ch*0.45)},134 ${R(ch-5)},116"/>
+    <path d="M${c},128 L${c},196"/>
+    ${[148,166,184].map(y=>`<path d="M${L(11)},${y} Q${c},${y+3} ${R(11)},${y}"/>`).join("")}
+    <path d="M${L(sh-3)},90 Q${L(sh-11)},104 ${L(ch-3)},112"/><path d="M${R(sh-3)},90 Q${R(sh-11)},104 ${R(ch-3)},112"/></g>`;
+}
+function avatarSvg(now, proj){
+  const Fn = figureShapes(now);
+  if(!proj) return `<svg viewBox="0 0 200 362" role="img" aria-label="Avatar mit ${nf0.format(now.bf)} % Körperfett">${figureSvg(Fn,"var(--figure)")}${defSvg(Fn)}</svg>`;
+  const Fp = figureShapes(proj);
+  return `<svg viewBox="0 0 200 362" role="img" aria-label="Prognose: ${nf0.format(proj.bf)} % Körperfett">
+    ${figureSvg(Fn,"var(--figure-ghost)")}${figureSvg(Fp,"var(--figure)",0.88)}${defSvg(Fp)}</svg>`;
+}
+
+/* ---------- Daten für das Dashboard ---------- */
+S.proj = 0; S.hist = null; S.histKey = "";
+async function loadHistory(force){
+  const key = S.active+"|"+today();
+  if(!force && S.hist && S.histKey===key) return S.hist;
+  const t = today(); const days = Array.from({length:14},(_,i)=>addDays(t,i-13));
+  const docs = await Store.getMany(days.map(d => dayPath(S.active,d)));
+  S.hist = days.map((d,i)=>({date:d, items:(docs[i]&&docs[i].items)||[]})); S.histKey = key;
+  return S.hist;
+}
+function stats(hist){
+  const t = today();
+  const days = hist.map(h => { const items = (h.date===t && S.date===t && S.day) ? (S.day.items||[]) : h.items; return {date:h.date, items, sum:sumItems(items)}; });
+  const done = days.filter(d => d.date<t && d.sum.kcal>0);
+  const d7 = done.filter(d => d.date>=addDays(t,-7));
+  const avg = (a,k) => a.length ? a.reduce((s,d)=>s+d.sum[k],0)/a.length : null;
+  let streak = 0; for(let i=days.length-1;i>=0;i--){ if(days[i].sum.kcal>0) streak++; else if(days[i].date===t) continue; else break; }
+  return {days, logged:done.length, avgKcal:avg(done,"kcal"), avgP:avg(done,"p"),
+    logged7:d7.length, avgKcal7:avg(d7,"kcal"), avgP7:avg(d7,"p"), avgC7:avg(d7,"c"), avgF7:avg(d7,"f"), streak, d7};
+}
+
+/* ---------- Diagramme ---------- */
+function barChart(days, key, target, color, unit){
+  const W=640,H=190,pl=40,pr=10,pt=14,pb=26,n=days.length,bw=(W-pl-pr)/n,t=today();
+  const vals = days.map(d=>d.sum[key]); const max = Math.max(target||0, ...vals, 1)*1.12;
+  const Y = v => pt + (1-v/max)*(H-pt-pb);
+  const bars = days.map((d,i) => {
+    const v = vals[i], x = pl+i*bw+bw*0.16, w = bw*0.68;
+    if(!v) return `<rect x="${x}" y="${H-pb-2}" width="${w}" height="2" fill="var(--line)"/>`;
+    const over = key==="kcal" && target && v>target*1.1;
+    return `<rect x="${x}" y="${Y(v)}" width="${w}" height="${H-pb-Y(v)}" rx="2" fill="${over?"var(--danger)":color}" opacity="${d.date===t?0.5:1}"><title>${nf0.format(v)} ${unit}</title></rect>`;
+  }).join("");
+  const labels = days.map((d,i)=> i%2===(n-1)%2 ? `<text x="${pl+i*bw+bw/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${d.date===t?"heute":parseYmd(d.date).getDate()+"."}</text>` : "").join("");
+  const tl = target ? `<line x1="${pl}" x2="${W-pr}" y1="${Y(target)}" y2="${Y(target)}" stroke="var(--ink)" stroke-dasharray="4 4" opacity=".7"/>
+    <text x="${pl-6}" y="${Y(target)+4}" text-anchor="end" font-size="11" fill="var(--ink)">${nf0.format(target)}</text>` : "";
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${unit} der letzten 14 Tage">
+    <line x1="${pl}" x2="${W-pr}" y1="${H-pb}" y2="${H-pb}" stroke="var(--line)"/><text x="${pl-6}" y="${H-pb+4}" text-anchor="end" font-size="11" fill="var(--muted)">0</text>
+    ${bars}${tl}${labels}</svg>`;
+}
+
+/* ---------- Empfehlungen ---------- */
+const IDEAS = [
+ ["Magerquark mit Beeren",[["Magerquark",250],["Beeren gemischt",100]]],
+ ["Skyr mit Haferflocken",[["Skyr nature",170],["Haferflocken",40]]],
+ ["Proteinshake mit Milch",[["Whey-Proteinpulver",30],["Milch Drink 2,7 %",300]]],
+ ["Proteinshake mit Wasser",[["Whey-Proteinpulver",30]]],
+ ["Hüttenkäse mit Knäckebrot",[["Hüttenkäse",200],["Knäckebrot",20]]],
+ ["Rührei mit Brot",[["Ei",165],["Ruchbrot",80]]],
+ ["Eiklar-Omelette mit Spinat",[["Eiklar",200],["Ei",55],["Spinat",100]]],
+ ["Pouletbrust mit Reis und Broccoli",[["Pouletbrust roh",150],["Reis roh",70],["Broccoli",150]]],
+ ["Pouletbrust mit Salat",[["Pouletbrust roh",150],["Blattsalat",100],["Olivenöl",10]]],
+ ["Lachs mit Kartoffeln und Broccoli",[["Lachs roh",125],["Kartoffeln gekocht",250],["Broccoli",150]]],
+ ["Thon-Wrap",[["Thon in Wasser, abgetropft",120],["Tortilla-Wrap",60],["Blattsalat",40]]],
+ ["Thon-Salat",[["Thon in Wasser, abgetropft",120],["Blattsalat",100],["Tomate",120]]],
+ ["Tofu mit Reis und Peperoni",[["Tofu natur",200],["Reis roh",70],["Peperoni",150]]],
+ ["Linsen-Bowl mit Feta",[["Linsen gekocht",200],["Feta",50],["Gurke",100]]],
+ ["Bündnerfleisch mit Brot",[["Bündnerfleisch",50],["Ruchbrot",80]]],
+ ["Proteinriegel",[["Proteinriegel",60]]],
+ ["Proteinpudding",[["Proteinpudding",200]]],
+ ["Mandeln und Banane",[["Mandeln",30],["Banane",120]]],
+ ["Erdnussbutter-Brot",[["Ruchbrot",80],["Erdnussbutter",30]]],
+ ["Haferflocken mit Milch und Banane",[["Haferflocken",80],["Milch Drink 2,7 %",250],["Banane",120]]],
+ ["Teigwaren mit magerem Hackfleisch",[["Teigwaren roh",100],["Rindshackfleisch mager 5 %",150],["Tomate",120]]],
+ ["Griechischer Joghurt mit Nüssen",[["Griechischer Joghurt 10 %",150],["Honig",10],["Baumnüsse",20]]],
+ ["Reiswaffeln mit Kochschinken",[["Reiswaffel",24],["Kochschinken",75]]]
+];
+const byName = n => BASE.find(f => f.name===n);
+const nutOf = items => items.reduce((a,{food,grams}) => { const v=calcItem(food,grams); return {kcal:a.kcal+v.kcal,p:a.p+v.p,c:a.c+v.c,f:a.f+v.f}; }, {kcal:0,p:0,c:0,f:0});
+const mealSlot = () => { const h=new Date().getHours(); return h<10?"fruehstueck":h<14?"mittag":h<17?"snack":h<21?"abend":"snack"; };
+const slotsLeft = () => { const h=new Date().getHours(); return h<10?4:h<14?3:h<18?2:1; };
+
+function recommend(sum, T, eatenItems=[]){
+  const rem = {kcal:T.kcal-sum.kcal, p:T.protein-sum.p, c:T.carbs-sum.c, f:T.fat-sum.f};
+  if(rem.p<=5 && rem.kcal<=150) return {state:"done", rem, list:[]};
+  if(rem.kcal < -100 && rem.p <= 5) return {state:"over", rem, list:[]};
+  const n = slotsLeft(), tp = Math.max(0,rem.p)/n, tk = Math.max(0,rem.kcal)/n;
+  const leanOnly = rem.kcal < 200;
+  let cands = IDEAS.map(([name,raw]) => ({name, items: raw.map(([fn,g]) => ({food:byName(fn), grams:g})).filter(x=>x.food)}));
+  (lsGet("typ:recent:"+(S.uid||S.active))||[]).slice(0,8).forEach(f => { if(!cands.some(c=>c.name===f.name)) cands.push({name:f.name, items:[{food:f, grams:f.portionG||100}], recent:true}); });
+  const eaten = new Set(eatenItems.map(i => norm(i.name)));
+  const yItems = (S.hist && S.hist.length>1 ? S.hist[S.hist.length-2].items : []) || [];
+  const eatenY = new Set(yItems.map(i => norm(i.name)));
+  // Hauptzutaten: alles, was in der Idee mindestens 8 g Protein liefert (sonst die proteinreichste Zutat)
+  const mains = c => { const withP = c.items.map(x => ({x, p:calcItem(x.food,x.grams).p})).sort((a,b)=>b.p-a.p);
+    const big = withP.filter(y=>y.p>=8); return (big.length?big:withP.slice(0,1)).map(y=>norm(y.x.food.name)); };
+  cands = cands.filter(c=>c.items.length)
+    .filter(c => !eaten.has(norm(c.name)) && !mains(c).some(m => eaten.has(m)))
+    .map(c => ({...c, n:nutOf(c.items), yesterday: mains(c).some(m => eatenY.has(m))}));
+  cands.forEach(c => {
+    const x = c.n, dens = x.p*4/Math.max(x.kcal,1);
+    let s;
+    if(rem.p > 5){
+      s = Math.min(x.p, tp*1.15)/Math.max(tp,1)*100 - Math.max(0, x.kcal-Math.max(tk*1.2,150))/8 + dens*30;
+      if(leanOnly && dens < 0.45) s -= 200;
+    } else {
+      s = 100 - Math.abs(tk-x.kcal)/8 - Math.max(0, x.f-Math.max(rem.f,0))*0.5;
+    }
+    if(c.recent) s += 6;
+    if(c.yesterday) s -= 15;                      // Abwechslung zum Vortag
+    c.score = s;
+  });
+  cands.sort((a,b)=>b.score-a.score);
+  const list = [], used = new Set();
+  for(const c of cands){ const m = mains(c)[0]; if(used.has(m)) continue; used.add(m); list.push(c); if(list.length===3) break; }
+  return {state: rem.kcal<-100 ? "over" : "open", rem, per:{p:tp,k:tk}, list};
+}
+
+async function addToToday(items, meal){
+  const t = today(); const stamp = Date.now().toString(36);
+  const newItems = items.map((x,i) => { const v = x.food ? calcItem(x.food, x.grams) : x.v;
+    return {id:"i"+stamp+i, name:x.food?x.food.name:x.name, grams:x.grams, ...v, meal,
+      per100: x.food ? {kcal:x.food.kcal,p:x.food.p,c:x.food.c,f:x.food.f} : {kcal:v.kcal/x.grams*100,p:v.p/x.grams*100,c:v.c/x.grams*100,f:v.f/x.grams*100}}; });
+  if(S.date===t){ await saveItems([...((S.day&&S.day.items)||[]), ...newItems]); }
+  else { const cur = (await Store.get(dayPath(S.active,t))) || {items:[]}; await Store.set(dayPath(S.active,t), {person:S.active, date:t, items:[...(cur.items||[]), ...newItems]}); }
+  S.histKey = "";
+  toast(`Zu ${MEALS.find(m=>m[0]===meal)[1]} hinzugefügt`);
+  if(S.tab==="dash") renderDashboard(true);
+}
+
+function renderRecs(el, sum, T, eatenItems=[]){
+  if(!el) return;
+  if(!T){ el.innerHTML = ""; return; }
+  const R = recommend(sum, T, eatenItems), slot = mealSlot(), slotName = MEALS.find(m=>m[0]===slot)[1];
+  let head;
+  if(R.state==="done") head = `<p class="rec-head good">Protein- und Kalorienziel für heute erreicht.</p>`;
+  else if(R.state==="over" && R.rem.p<=5) head = `<p class="rec-head">Kalorienziel um ${nf0.format(-R.rem.kcal)} kcal überschritten, Protein erreicht. Für heute keine weiteren Empfehlungen.</p>`;
+  else if(R.rem.kcal < 200 && R.rem.p > 5) head = `<p class="rec-head">Noch <b>${nf0.format(R.rem.p)} g Protein</b> offen, aber kaum Kalorien übrig. Diese Optionen liefern viel Protein mit wenig Kalorien:</p>`;
+  else if(R.rem.p > 5) head = `<p class="rec-head">Noch <b>${nf0.format(R.rem.p)} g Protein</b> und <b>${nf0.format(Math.max(0,R.rem.kcal))} kcal</b> offen. Für die nächste Mahlzeit passen etwa ${nf0.format(R.per.p)} g Protein und ${nf0.format(R.per.k)} kcal:</p>`;
+  else head = `<p class="rec-head">Protein erreicht, es fehlen noch <b>${nf0.format(R.rem.kcal)} kcal</b>${person().goal==="aufbau"?", für Muskelaufbau wichtig":""}:</p>`;
+  el.innerHTML = `<div class="recs"><h3>Empfehlung</h3>${head}
+    ${R.list.length ? `<ul class="reclist">${R.list.map((c,i)=>`<li><div><b>${esc(c.name)}</b>
+      <span class="num">${nf0.format(c.n.p)} g Protein, ${nf0.format(c.n.kcal)} kcal</span>
+      <small>${c.items.map(x=>esc(x.food.name)+" "+nf0.format(x.grams)+" g").join(", ")}</small></div>
+      <button class="btn line" data-rec="${i}">Zu ${slotName}</button></li>`).join("")}</ul>
+      <div class="aiIdeas"></div>` : ""}</div>`;
+  el.querySelectorAll("[data-rec]").forEach(b => b.onclick = () => addToToday(R.list[+b.dataset.rec].items, slot));
+  const box = el.querySelector(".aiIdeas");
+  if(box && !sampleOff){
+    getSample().then(sample => { if(!sample || !box.isConnected) return;
+      box.innerHTML = `<button class="link">Andere Ideen von Claude</button>`;
+      box.querySelector("button").onclick = () => aiIdeas(box, R, slot, slotName, eatenItems);
+    });
+  }
+}
+async function aiIdeas(box, R, slot, slotName, eatenItems=[]){
+  const sample = await getSample(); if(!sample) return;
+  box.innerHTML = `<p class="hint">Claude sucht passende Ideen …</p>`;
+  const recent = (lsGet("typ:recent:"+(S.uid||S.active))||[]).map(f=>f.name).slice(0,12).join(", ") || "keine Angaben";
+  const prompt = `Schlage 3 einfache Mahlzeiten oder Snacks vor, die man in der Schweiz mit Zutaten aus Migros oder Coop zubereiten kann.
+Ziel für die nächste Mahlzeit (${slotName}): etwa ${Math.round(Math.max(R.per?R.per.p:R.rem.p,0))} g Protein und höchstens ${Math.round(Math.max(R.per?R.per.k:150,150))} kcal.
+Diese Lebensmittel isst die Person oft: ${recent}.
+Heute bereits gegessen (NICHT erneut vorschlagen, auch nicht als Hauptzutat): ${[...new Set(eatenItems.map(i=>i.name))].join(", ") || "noch nichts"}.
+Wähle abwechslungsreiche, alltagstaugliche Ideen mit unterschiedlichen Proteinquellen.
+Antworte ausschliesslich mit JSON: {"ideas":[{"name":"kurzer Name","items":[{"name":"Zutat","grams":Zahl,"kcal":Zahl,"protein":Zahl,"carbs":Zahl,"fat":Zahl}]}]}
+Die Nährwerte pro Zutat gelten für die angegebene Menge, nicht pro 100 g.`;
+  try{
+    const r = await sample.json(prompt, {modelTier:"quick"});
+    const ideas = (r && Array.isArray(r.ideas) ? r.ideas : []).slice(0,3).map(i => ({name:String(i.name||"Idee").slice(0,60),
+      items:(Array.isArray(i.items)?i.items:[]).filter(x=>x && x.grams>0 && [x.kcal,x.protein,x.carbs,x.fat].every(v=>typeof v==="number"&&v>=0&&v<3000))
+        .map(x=>({name:String(x.name).slice(0,60), grams:Math.round(x.grams), v:{kcal:Math.round(x.kcal),p:r1(x.protein),c:r1(x.carbs),f:r1(x.fat)}}))})).filter(i=>i.items.length);
+    if(!box.isConnected) return;
+    if(!ideas.length){ box.innerHTML = `<p class="hint">Keine brauchbaren Vorschläge erhalten. Versuche es nochmals.</p>`; return; }
+    box.innerHTML = `<ul class="reclist">${ideas.map((c,i)=>{ const n=c.items.reduce((a,x)=>({p:a.p+x.v.p,k:a.k+x.v.kcal}),{p:0,k:0});
+      return `<li><div><b>${esc(c.name)}</b><span class="num">${nf0.format(n.p)} g Protein, ${nf0.format(n.k)} kcal</span>
+      <small>${c.items.map(x=>esc(x.name)+" "+nf0.format(x.grams)+" g").join(", ")}</small></div>
+      <button class="btn line" data-ai="${i}">Zu ${slotName}</button></li>`; }).join("")}</ul><p class="hint">Schätzwerte von Claude.</p>`;
+    box.querySelectorAll("[data-ai]").forEach(b => b.onclick = () => addToToday(ideas[+b.dataset.ai].items, slot));
+  }catch(e){
+    if(!box.isConnected) return;
+    if(e && e.code==="not_granted"){ sampleOff = true; box.innerHTML = ""; return; }
+    box.innerHTML = `<p class="hint">Ideen konnten nicht geladen werden. Versuche es später erneut.</p>`;
+  }
+}
+
+/* ---------- Wöchentliches Wiegen ---------- */
+const weekStart = s => { const d=parseYmd(s); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return ymd(d); };
+function thisWeekEntry(pid=S.active){
+  const e = S.weights[pid]||{}, ws = weekStart(today());
+  const k = Object.keys(e).filter(k=>k>=ws).sort().pop();
+  return k ? {date:k, kg:e[k]} : null;
+}
+async function saveWeeklyWeight(kg){
+  const e = {...(S.weights[S.active]||{})}, ws = weekStart(today());
+  Object.keys(e).forEach(k => { if(k>=ws) delete e[k]; });   // eine Wiegung pro Woche
+  e[today()] = r1(kg);
+  S.weights[S.active] = e;
+  await Store.set("weights/"+S.active, {entries:e});
+  toast("Wochengewicht gespeichert");
+}
+
+/* ---------- Dashboard ---------- */
+async function renderDashboard(force){
+  const hist = await loadHistory(force);
+  if(S.tab!=="dash") return;
+  const el = $("#v-dash");
+  const st = stats(hist), T = targets(), bc = bodyComp(), p = person(), wt = weightTrend();
+  const proj = project(bc, st, S.proj), canProj = !!(bc && T && st.logged >= 3);
+  const todayD = st.days[st.days.length-1];
+  const bal = (T && st.avgKcal!=null) ? st.avgKcal - T.tdee : null;
+  const shown = proj || bc;
+  const dl = (a,b,unit) => { if(!proj) return ""; const d=b-a; if(Math.abs(d)<0.05) return ""; return `<span class="delta">${d>0?"+":"−"}${nf1.format(Math.abs(d))}${unit}</span>`; };
+
+  const av = !bc ? `<p class="small">Fülle im Profil Alter, Grösse und Gewicht aus, dann erscheint dein Avatar.</p><button class="btn line" data-goto="profil">Profil ausfüllen</button>` : `
+    <div class="avwrap"><div class="fig">${avatarSvg(bc, proj)}</div>
+      <dl class="bstats">
+        <div><dt>Körperfett</dt><dd class="num">${nf1.format(shown.bf)} %${dl(bc.bf,shown.bf," %")}<small>${bfLabel(shown.bf,bc.male)}</small></dd></div>
+        <div><dt>Muskelindex (FFMI)</dt><dd class="num">${nf1.format(shown.ffmi)}${dl(bc.ffmi,shown.ffmi,"")}<small>${ffmiLabel(shown.ffmi,bc.male)}</small></dd></div>
+        <div><dt>Gewicht</dt><dd class="num">${nf1.format(shown.w)} kg${dl(bc.w,shown.w," kg")}</dd></div>
+      </dl></div>
+    <div class="proj" role="group" aria-label="Prognose"><span>Prognose bei gleichem Essverhalten</span>
+      ${[[0,"Heute"],[4,"4 Wochen"],[8,"8 Wochen"],[12,"12 Wochen"]].map(([w,l])=>`<button data-proj="${w}" aria-pressed="${S.proj===w}" ${w&&!canProj?"disabled":""}>${l}</button>`).join("")}</div>
+    <p class="small">${canProj ? (proj?"Hell: heute, blau: Prognose. ":"")+"Annahme: regelmässiges Krafttraining." : "Prognose ab 3 vollständig erfassten Tagen."}</p>`;
+
+  const todayBox = !T ? `<p class="small">Noch keine Ziele berechnet.</p><button class="btn line" data-goto="profil">Profil ausfüllen</button>` : `
+    <div class="big num">${nf0.format(todayD.sum.p)}<span class="bigsub"> / ${nf0.format(T.protein)} g Protein</span></div>
+    <div class="pbar"><i style="width:${Math.min(100,todayD.sum.p/T.protein*100)}%"></i></div>
+    <div class="row"><span>Kalorien</span><span class="num">${nf0.format(todayD.sum.kcal)} / ${nf0.format(T.kcal)} kcal</span></div>
+    <div id="recsDash"></div>`;
+
+  /* Kennzahlen */
+  const hit7 = T ? st.d7.filter(d=>d.sum.p>=T.protein*0.95).length : 0;
+  const goalW = Number(p.goalWeight)||null, expWeek = bal!=null ? bal*7/7700 : null, rate = wt.perWeek ?? expWeek;
+  let eta = "–";
+  if(goalW && wt.cur!=null && rate){ const rest=goalW-wt.cur; if(Math.abs(rest)<0.3) eta="erreicht"; else if(Math.sign(rest)===Math.sign(rate) && Math.abs(rate)>0.02){ const wk=rest/rate; eta = wk>104 ? "> 2 Jahre" : parseYmd(addDays(today(),Math.round(wk*7))).toLocaleDateString("de-CH",{day:"numeric",month:"short",year:"2-digit"}); } else eta="Gegentrend"; }
+  const k = (l,v,s,cls="") => `<div class="kpi"><div class="l">${l}</div><div class="v num ${cls}">${v}</div><div class="s num">${s}</div></div>`;
+  const balCls = bal==null?"":(p.goal==="aufbau"?(bal>=50&&bal<=500?"good":"warn"):p.goal==="reduktion"?(bal<=-200&&bal>=-900?"good":"warn"):(Math.abs(bal)<=250?"good":"warn"));
+  const kpis = [
+    k("Ø Protein, 7 Tage", st.avgP7!=null?nf0.format(st.avgP7)+" g":"–", T?`Ziel ${nf0.format(T.protein)} g`:"", T&&st.avgP7!=null?(st.avgP7>=T.protein*0.95?"good":"warn"):""),
+    k("Proteinziel erreicht", T?`${hit7} / ${st.logged7||0}`:"–", "Tage diese Woche", T&&st.logged7&&hit7/st.logged7>=0.7?"good":""),
+    k("Energiebilanz", bal!=null?(bal>0?"+":"−")+nf0.format(Math.abs(bal)):"–", "kcal pro Tag, Ø 14 Tage", balCls),
+    k("Zielgewicht", goalW?nf1.format(goalW)+" kg":"–", goalW?`voraussichtlich ${eta}`:"im Profil festlegen")
+  ].join("");
+
+  /* ein Wochenfazit */
+  let tip = "";
+  if(st.logged < 3) tip = "Erfasse mindestens 3 vollständige Tage, damit Durchschnitte und Prognose aussagekräftig werden.";
+  else if(p.goal==="aufbau" && bal<0) tip = `Im Schnitt ${nf0.format(-bal)} kcal unter deinem Bedarf. Für Muskelaufbau braucht es einen Überschuss von etwa 200 bis 400 kcal.`;
+  else if(p.goal==="aufbau" && bal>500) tip = `Überschuss von ${nf0.format(bal)} kcal pro Tag baut mehr Fett als Muskeln auf; 200 bis 400 kcal reichen.`;
+  else if(p.goal==="reduktion" && bal>-150) tip = "Kaum Kaloriendefizit. Für Fettabbau braucht es etwa 300 bis 600 kcal unter dem Bedarf.";
+  else if(p.goal==="reduktion" && bal<-1000) tip = "Sehr grosses Defizit. Das erhöht das Risiko, Muskeln zu verlieren; moderater ist nachhaltiger.";
+  else if(T && st.logged7 && hit7/st.logged7 < 0.7) tip = `Proteinziel nur an ${hit7} von ${st.logged7} Tagen erreicht. Im Schnitt fehlen ${nf0.format(Math.max(0,T.protein-st.avgP7))} g pro Tag.`;
+
+  /* Wochengewicht */
+  const we = thisWeekEntry(), nextMon = addDays(weekStart(today()),7);
+  const sg = v => v==null ? "–" : Math.abs(v)<0.05 ? "±0 kg" : (v>0?"+":"−")+nf1.format(Math.abs(v))+" kg";
+  const weightBox = we ? `
+      <p class="wk-done num">Diese Woche gewogen: <b>${nf1.format(we.kg)} kg</b> am ${parseYmd(we.date).toLocaleDateString("de-CH",{weekday:"long"})}.</p>
+      <table class="targets num"><tbody>
+        <tr><td>Veränderung pro Woche</td><td>${sg(wt.perWeek)}</td></tr>
+        <tr><td>Nächste Wiegung</td><td>ab ${parseYmd(nextMon).toLocaleDateString("de-CH",{weekday:"long",day:"numeric",month:"short"})}</td></tr>
+      </tbody></table>
+      <button class="link" id="wkEdit">Wert korrigieren</button>
+      <div class="inline" id="wkForm" hidden><label class="field"><span>Gewicht in kg</span><input type="number" id="dKg" step="0.1" min="30" max="250" inputmode="decimal" value="${we.kg}"></label><button class="btn" id="dKgSave">Speichern</button></div>`
+    : `<p class="wk-due">Wiegung für diese Woche fällig. Am besten morgens, nüchtern, gleiche Waage.</p>
+      <div class="inline"><label class="field"><span>Gewicht in kg</span><input type="number" id="dKg" step="0.1" min="30" max="250" inputmode="decimal"></label><button class="btn" id="dKgSave">Speichern</button></div>
+      ${wt.perWeek!=null?`<p class="small num">Bisheriger Trend: ${sg(wt.perWeek)} pro Woche</p>`:""}`;
+
+  el.innerHTML = `
+    <div class="dgrid top">
+      <section class="avp" aria-labelledby="avh"><h2 id="avh">Dein Körper</h2>${av}</section>
+      <section class="pane todaybox"><h2>Heute <small>${parseYmd(today()).toLocaleDateString("de-CH",{weekday:"long",day:"numeric",month:"long"})}</small></h2>${todayBox}</section>
+    </div>
+    <div class="kpis">${kpis}</div>
+    ${tip?`<p class="tip">${tip}</p>`:""}
+    <div class="dgrid two">
+      <section class="pane"><h2>Protein <small>letzte 14 Tage, g</small></h2><div class="chart">${barChart(st.days,"p",T&&T.protein,"var(--protein)","g Protein")}</div></section>
+      <section class="pane"><h2>Wochengewicht</h2>${weightBox}</section>
+    </div>`;
+
+  if(T) renderRecs($("#recsDash"), todayD.sum, T, todayD.items);
+  el.querySelectorAll("[data-proj]").forEach(b => b.onclick = () => { S.proj = +b.dataset.proj; renderDashboard(); });
+  const ed = $("#wkEdit"); if(ed) ed.onclick = () => { $("#wkForm").hidden = false; ed.hidden = true; $("#dKg").focus(); };
+  const kgBtn = $("#dKgSave");
+  if(kgBtn) kgBtn.onclick = async () => {
+    const kg = Number($("#dKg").value);
+    if(!(kg>=30 && kg<=250)){ $("#dKg").focus(); toast("Bitte ein Gewicht zwischen 30 und 250 kg eingeben."); return; }
+    await saveWeeklyWeight(kg); renderDashboard();
+  };
+}
+
+/* ---------- Sicherung ---------- */
+function exportData(){
+  const out = {app:"trackyourprotein", version:1, exported:new Date().toISOString(), data:{}};
+  try{ for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith("typ:") && k!=="typ:lastBackup") out.data[k]=localStorage.getItem(k); } }catch(e){}
+  const blob = new Blob([JSON.stringify(out)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `trackyourprotein-sicherung-${today()}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  lsSet("typ:lastBackup", today()); toast("Sicherung erstellt");
+}
+function importData(file){
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const j = JSON.parse(r.result);
+      if(!j || j.app!=="trackyourprotein" || typeof j.data!=="object") throw new Error("format");
+      if(!confirm("Die Sicherung ersetzt die Daten auf diesem Gerät. Fortfahren?")) return;
+      Object.keys(localStorage).filter(k=>k.startsWith("typ:")).forEach(k=>localStorage.removeItem(k));
+      Object.entries(j.data).forEach(([k,v]) => { if(k.startsWith("typ:")) localStorage.setItem(k, v); });
+      location.reload();
+    }catch(e){ toast("Diese Datei ist keine gültige Sicherung."); }
+  };
+  r.readAsText(file);
+}
+
+/* ---------- Konto ---------- */
+async function exportCloud(){
+  const {data, error} = await sb.from("docs").select("path,data,updated_at");
+  if(error){ toast("Export fehlgeschlagen."); return; }
+  const blob = new Blob([JSON.stringify({app:"trackyourprotein", exported:new Date().toISOString(), email:S.email, docs:data}, null, 1)], {type:"application/json"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `trackyourprotein-export-${today()}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+async function deleteAccount(){
+  if(!confirm("Konto und alle gespeicherten Daten endgültig löschen? Das kann nicht rückgängig gemacht werden.")) return;
+  const {error} = await sb.rpc("delete_my_account");
+  if(error){ toast("Löschen fehlgeschlagen. Bitte später erneut versuchen."); return; }
+  try{ Object.keys(localStorage).filter(k=>k.startsWith("typ:")).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+  await sb.auth.signOut(); location.reload();
+}
+
+/* ---------- Anmeldung ---------- */
+function authMsg(t, err){ const m = $("#authMsg"); if(m){ m.hidden = !t; m.textContent = t||""; m.className = "msg"+(err?" err":""); } }
+function authError(e){
+  const m = (e && e.message || "").toLowerCase();
+  if(m.includes("invalid login")) return "E-Mail oder Passwort ist falsch.";
+  if(m.includes("email not confirmed")) return "Bitte bestätige zuerst deine E-Mail-Adresse über den Link in deinem Postfach.";
+  if(m.includes("already registered") || m.includes("already been registered")) return "Diese E-Mail-Adresse ist bereits registriert. Melde dich an.";
+  if(m.includes("password")) return "Das Passwort muss mindestens 8 Zeichen lang sein.";
+  if(m.includes("rate limit")) return "Zu viele Versuche. Bitte warte einige Minuten.";
+  return "Das hat nicht geklappt. Bitte versuche es erneut.";
+}
+function showAuth(view="login"){
+  const box = $("#authBox"); $("#auth").hidden = false;
+  const reg = view==="register";
+  box.innerHTML = `<h1>Track your protein</h1>
+    <p class="lead">Kalorien und Protein tracken, Fortschritt sehen, Ziel erreichen.</p>
+    <div class="seg" role="group"><button data-av="login" aria-pressed="${!reg}">Anmelden</button><button data-av="register" aria-pressed="${reg}">Profil erstellen</button></div>
+    <p id="authMsg" class="msg" hidden></p>
+    ${reg?`<label class="field"><span>Vorname</span><input type="text" id="auName" maxlength="30" autocomplete="given-name"></label>`:""}
+    <label class="field"><span>E-Mail</span><input type="email" id="auMail" autocomplete="email" inputmode="email"></label>
+    <label class="field"><span>Passwort${reg?" (mindestens 8 Zeichen)":""}</span><input type="password" id="auPw" autocomplete="${reg?"new-password":"current-password"}" minlength="8"></label>
+    ${reg?`<label class="check"><input type="checkbox" id="auOk"><span>Ich bin einverstanden, dass meine Angaben, auch Gewicht und Körperwerte, gespeichert werden. Sie sind nur für mich sichtbar. Der Betreiber sieht Name, E-Mail und Aktivität. Ich kann mein Konto jederzeit löschen.</span></label>`:""}
+    <button class="btn wide" id="auGo">${reg?"Profil erstellen":"Anmelden"}</button>
+    ${reg?"":`<p><button class="link" id="auReset">Passwort vergessen?</button></p>`}`;
+  box.querySelectorAll("[data-av]").forEach(b => b.onclick = () => showAuth(b.dataset.av));
+  const go = async () => {
+    const email = $("#auMail").value.trim(), pw = $("#auPw").value;
+    if(!/^\S+@\S+\.\S+$/.test(email)){ authMsg("Bitte eine gültige E-Mail-Adresse eingeben.", true); return; }
+    if(pw.length < 8){ authMsg("Das Passwort muss mindestens 8 Zeichen lang sein.", true); return; }
+    const btn = $("#auGo"); btn.disabled = true;
+    try{
+      if(reg){
+        const name = $("#auName").value.trim();
+        if(!name){ authMsg("Bitte gib deinen Vornamen ein.", true); return; }
+        if(!$("#auOk").checked){ authMsg("Bitte bestätige die Einwilligung.", true); return; }
+        const {data, error} = await sb.auth.signUp({email, password:pw, options:{data:{display_name:name}, emailRedirectTo: location.origin+location.pathname}});
+        if(error) throw error;
+        if(data.session){ await enterApp(data.session); return; }
+        authMsg("Fast geschafft: Wir haben dir eine E-Mail geschickt. Bestätige deine Adresse über den Link, danach kannst du dich anmelden.");
+      } else {
+        const {data, error} = await sb.auth.signInWithPassword({email, password:pw});
+        if(error) throw error;
+        await enterApp(data.session);
+      }
+    }catch(e){ authMsg(authError(e), true); }
+    finally{ if($("#auGo")) $("#auGo").disabled = false; }
+  };
+  $("#auGo").onclick = go;
+  box.querySelectorAll("input").forEach(i => i.addEventListener("keydown", e => { if(e.key==="Enter") go(); }));
+  const rs = $("#auReset");
+  if(rs) rs.onclick = async () => {
+    const email = $("#auMail").value.trim();
+    if(!/^\S+@\S+\.\S+$/.test(email)){ authMsg("Gib zuerst deine E-Mail-Adresse ein.", true); return; }
+    const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: location.origin+location.pathname});
+    authMsg(error ? authError(error) : "Falls ein Konto existiert, erhältst du eine E-Mail mit einem Link zum Zurücksetzen.", !!error);
+  };
+}
+function showNewPassword(){
+  $("#auth").hidden = false;
+  $("#authBox").innerHTML = `<h1>Neues Passwort</h1><p class="lead">Lege ein neues Passwort fest.</p><p id="authMsg" class="msg" hidden></p>
+    <label class="field"><span>Neues Passwort (mindestens 8 Zeichen)</span><input type="password" id="auPw" autocomplete="new-password"></label>
+    <button class="btn wide" id="auGo">Speichern</button>`;
+  $("#auGo").onclick = async () => {
+    const pw = $("#auPw").value; if(pw.length<8){ authMsg("Das Passwort muss mindestens 8 Zeichen lang sein.", true); return; }
+    const {error} = await sb.auth.updateUser({password:pw});
+    if(error){ authMsg(authError(error), true); return; }
+    location.replace(location.origin+location.pathname);
+  };
+}
+let appStarted = false;
+async function enterApp(session){
+  S.uid = session.user.id; S.email = session.user.email; S.cloud = true; S.active = "p1";
+  const {data:prof} = await sb.from("profiles").select("display_name,is_admin").eq("id", S.uid).maybeSingle();
+  if(prof && prof.display_name) DEFAULT_NAMES.p1 = prof.display_name;
+  S.isAdmin = !!(prof && prof.is_admin);
+  $("#adminTab").hidden = !S.isAdmin;
+  sb.from("profiles").update({last_seen:new Date().toISOString()}).eq("id", S.uid).then(()=>{});
+  $("#auth").hidden = true;
+  if(!appStarted){ appStarted = true; await startApp(); }
+}
+
+/* ---------- Admin ---------- */
+async function renderAdmin(){
+  const el = $("#v-admin");
+  if(!S.isAdmin){ el.innerHTML = `<p class="small">Kein Zugriff.</p>`; return; }
+  el.innerHTML = `<h2 class="sec">Profile</h2><p class="small">Wird geladen …</p>`;
+  const {data, error} = await sb.rpc("admin_user_overview");
+  if(S.tab!=="admin") return;
+  if(error){ el.innerHTML = `<h2 class="sec">Profile</h2><p class="small">Übersicht konnte nicht geladen werden.</p>`; return; }
+  const users = data||[], now = Date.now(), d = s => s ? new Date(s).toLocaleDateString("de-CH",{day:"numeric",month:"short",year:"numeric"}) : "–";
+  const active7 = users.filter(u => u.last_seen && now-new Date(u.last_seen) < 7*864e5).length;
+  const new30 = users.filter(u => now-new Date(u.created_at) < 30*864e5).length;
+  el.innerHTML = `<h2 class="sec">Profile</h2>
+    <div class="kpis" style="margin-top:6px">
+      <div class="kpi"><div class="l">Profile total</div><div class="v num">${users.length}</div><div class="s">registriert</div></div>
+      <div class="kpi"><div class="l">Aktiv</div><div class="v num">${active7}</div><div class="s">letzte 7 Tage</div></div>
+      <div class="kpi"><div class="l">Neu</div><div class="v num">${new30}</div><div class="s">letzte 30 Tage</div></div>
+      <div class="kpi"><div class="l">Erfasste Tage</div><div class="v num">${nf0.format(users.reduce((a,u)=>a+Number(u.days_logged||0),0))}</div><div class="s">alle Profile</div></div>
+    </div>
+    <div class="tablewrap"><table class="users"><thead><tr><th>Name</th><th>E-Mail</th><th>Registriert</th><th>Zuletzt aktiv</th><th class="r">Erfasste Tage</th></tr></thead>
+    <tbody>${users.map(u=>`<tr><td>${esc(u.display_name||"–")}</td><td>${esc(u.email||"")}</td><td>${d(u.created_at)}</td><td>${d(u.last_seen)}</td><td class="r num">${nf0.format(Number(u.days_logged||0))}</td></tr>`).join("")}</tbody></table></div>
+    <p class="small" style="margin-top:12px">Gewicht, Mahlzeiten und Körperwerte der Profile sind für den Administrator bewusst nicht sichtbar.</p>`;
+}
+
+/* ---------- Navigation ---------- */
+function showTab(tab){
+  S.tab = tab;
+  document.querySelectorAll(".tabs [data-tab]").forEach(b => b.setAttribute("aria-selected", b.dataset.tab===tab));
+  ["dash","heute","verlauf","profil","admin"].forEach(t => $("#v-"+t).hidden = t!==tab);
+  if(tab==="admin") renderAdmin();
+  document.body.classList.toggle("dash", tab==="dash");
+  if(tab==="dash") renderDashboard(true);
+  if(tab==="heute") renderToday();
+  if(tab==="verlauf"){ renderWeights(); renderWeek(); }
+  if(tab==="profil") renderProfile();
+  window.scrollTo(0,0);
+}
+function subscribeDay(){
+  if(S.unsubDay) S.unsubDay();
+  const path = dayPath(); S.day = null;
+  S.unsubDay = Store.sub(path, d => { if(path!==dayPath()) return; S.day = d || {items:[]}; if(S.tab==="heute") renderToday(); if(S.tab==="dash") renderDashboard(); });
+}
+function setPerson(pid){
+  S.active = pid; lsSet("typ:active", pid); renderWho(); subscribeDay(); showTab(S.tab);
+}
+function setDate(d){ S.date = d; subscribeDay(); renderToday(); }
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button"); if(!t) return;
+  if(t.dataset.pid) setPerson(t.dataset.pid);
+  else if(t.dataset.tab) showTab(t.dataset.tab);
+  else if(t.dataset.goto) showTab(t.dataset.goto);
+  else if(t.dataset.add) openAdd(t.dataset.add);
+  else if(t.dataset.edit) openEdit(t.dataset.edit);
+  else if(t.dataset.copy) copyFromYesterday(t.dataset.copy);
+});
+$("#prevDay").onclick = () => setDate(addDays(S.date,-1));
+$("#nextDay").onclick = () => { if(S.date < today()) setDate(addDays(S.date,1)); };
+$("#dateLabel").onclick = () => setDate(today());
+
+/* ---------- Start ---------- */
+async function startApp(){
+  renderWho();
+  const mode = await Store.init();
+  ["p1"].forEach(pid => {
+    Store.sub("people/"+pid, d => { S.people[pid]=d; renderWho(); if(S.tab==="heute") renderToday(); if(S.tab==="dash" && pid===S.active) renderDashboard(); });
+    Store.sub("weights/"+pid, d => { S.weights[pid]=(d&&d.entries)||{}; if(pid===S.active){ if(S.tab==="heute") renderToday(); if(S.tab==="verlauf") renderWeights(); if(S.tab==="dash") renderDashboard(); } });
+  });
+  Store.sub("foods/custom", d => { S.custom = ((d&&d.items)||[]).map(prepFood); });
+  subscribeDay();
+  $("#loading").hidden = true;
+  showTab("dash");
+}
+(async () => {
+  if(cloudReady()){
+    sb = supabase.createClient(CLOUD.url, CLOUD.key, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}});
+    let recovering = false;
+    sb.auth.onAuthStateChange(ev => { if(ev==="PASSWORD_RECOVERY"){ recovering = true; showNewPassword(); } });
+    const {data:{session}} = await sb.auth.getSession();
+    $("#loading").hidden = true;
+    if(recovering || location.hash.includes("type=recovery")) return;
+    if(!session){ showAuth(); return; }
+    await enterApp(session);
+  } else {
+    appStarted = true; await startApp();
+  }
+})();
+</script>
+</body>
+</html>
