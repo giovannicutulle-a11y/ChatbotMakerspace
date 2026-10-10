@@ -476,8 +476,8 @@ function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){}
 
 /* ---------- Konfiguration: hier die Werte aus Supabase eintragen ---------- */
 const CLOUD = {
-  url: "DEINE_SUPABASE_URL",            // z. B. https://abcdefgh.supabase.co
-  key: "DEIN_PUBLISHABLE_KEY"           // Project Settings > API Keys > Publishable key
+  url: "https://abcd.supabase.co",            // z. B. https://abcdefgh.supabase.co
+  key: "  key: "DEIN_PUBLISHABLE_KEY"           // Project Settings > API Keys > Publishable key"           // Project Settings > API Keys > Publishable key
 };
 const cloudReady = () => !!(window.supabase && /^https:\/\/[a-z0-9-]+\.supabase\.co\/?$/.test(CLOUD.url) && CLOUD.key && !CLOUD.key.startsWith("DEIN"));
 let sb = null;
